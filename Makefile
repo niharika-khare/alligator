@@ -38,8 +38,9 @@ $(BIN_DIR) $(BUILD_DIR):
 
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c  $(DEPS)
-	@mkdir -p $@
+	@mkdir -p $(dir $@)
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 alligator: $(OBJ)
+	@mkdir -p $(dir $@)
 	$(CC) $^ -o $(BIN_DIR)/$@
