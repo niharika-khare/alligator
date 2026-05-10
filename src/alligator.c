@@ -7,7 +7,6 @@ _Header * fl_mid = NULL;
 _Header * fl_lrg = NULL;
 
 
-
 static _Header * _fl_add (_Header * fl, _Header * slab) {
 
     if (!fl) {
@@ -37,28 +36,23 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
                 st->head.prev->head.next = st->head.next;
             }
             
-            st->head.flags = st->head.flags & !IS_FREE;
+            st->head.flags = st->head.flags & ~IS_FREE;
             
             return st;
         }
-        else if (st->head.size >= size + H_SIZE) {
+        else if (st->head.size >= size + ALOC_H_SIZE) {
 
-            st->head.size = st->head.size - (size + H_SIZE) ;
-            _Header * f_blk = ((_Header *) ((void *) (st + 1 + size) ));
+            st->head.size = st->head.size - (size + ALOC_H_SIZE) ;
+            _Header * f_blk = ((_Header *) ((char *) st + ALOC_H_SIZE + size ));
 
-            printf("\nsize: %d\n", size);
-            printf("\ndiff: %d\n", f_blk - st);
-            printf("\ndiff (void *): %d\n", (void *) (f_blk - st));
             f_blk->head.size = size;
             f_blk->head.prev_size = st->head.size;
-            f_blk->head.prev = st;
-            f_blk->head.next = st->head.next;
-            f_blk->head.flags = 0;
                 
             return f_blk;
         }
+        st = st->head.next;
     }
-    while (st != fl);
+    while (st && st != fl);
 
     return NULL;
 }
@@ -128,17 +122,18 @@ void * mm_alloc (size_t size) {
         f_blk = _find_f_blk(fl, size);
     }
     
-
-    return f_blk ? (void *) (f_blk + 1) : NULL;
+    return f_blk ? (char *) f_blk + ALOC_H_SIZE : NULL;
 }
 
 
 void mm_free ( void * mem ) {
 
-    _Header * blk = ((_Header *) mem - 1);
+    _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
+
+    printf("Prev size: %ld\n\n", blk->head.prev_size);
 
     if (blk->head.flags & IS_HUGE_BLK) {
-        munmap(blk, blk->head.size + H_SIZE);
+        munmap(blk, blk->head.size + FREE_H_SIZE);
     }
 
 }

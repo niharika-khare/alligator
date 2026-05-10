@@ -7,13 +7,14 @@
 
 
 #define PAGE_SIZE                   sysconf(_SC_PAGESIZE)
-#define H_SIZE                      sizeof (_Header)
+#define FREE_H_SIZE                 sizeof (_Header)
+#define ALOC_H_SIZE                 2 * sizeof (size_t)
 
 
 /** Different slab size to save from over allocation */
-#define SLAB_SIZE_SML               PAGE_SIZE - H_SIZE
-#define SLAB_SIZE_MID               1024 * PAGE_SIZE - H_SIZE
-#define SLAB_SIZE_LRG               1024 * 1024 * PAGE_SIZE - H_SIZE
+#define SLAB_SIZE_SML               PAGE_SIZE - FREE_H_SIZE
+#define SLAB_SIZE_MID               1024 * PAGE_SIZE - FREE_H_SIZE
+#define SLAB_SIZE_LRG               1024 * 1024 * PAGE_SIZE - FREE_H_SIZE
 
 
 /** Flags bits */
@@ -28,11 +29,11 @@ typedef unsigned long _align;
 
 typedef union header {
     struct {
-        unsigned int flags;
         size_t size;
         size_t prev_size;
+        unsigned int flags;
         union header * next;
-        union header * prev;                // points to the last block 
+        union header * prev;                
     } head;
     _align _al;
 } _Header;
