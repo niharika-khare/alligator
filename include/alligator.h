@@ -4,6 +4,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#define min(a,b)  (((a) < (b)) ? (a) : (b))
+#define max(a,b)  (((a) > (b)) ? (a) : (b))
 
 
 #define PAGE_SIZE                   sysconf(_SC_PAGESIZE)
@@ -22,6 +24,7 @@
 #define IS_FRST_BLK                 2       // Starting block on slab
 #define IS_LAST_BLK                 4       // Ending block on slab
 #define IS_HUGE_BLK                 8
+
 
 
 typedef unsigned long _align;
