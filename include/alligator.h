@@ -1,6 +1,8 @@
 #ifndef _ALLIGATOR_H_
 #define _ALLIGATOR_H_
 
+#include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -10,7 +12,8 @@
 
 #define PAGE_SIZE                   sysconf(_SC_PAGESIZE)
 #define FREE_H_SIZE                 sizeof (_Header)
-#define ALOC_H_SIZE                 2 * sizeof (size_t)
+#define ALOC_H_SIZE                 sizeof (_alloc_head)
+#define MAGIC_NUMBER                0xFF
 
 
 /** Different slab size to save from over allocation */
@@ -29,12 +32,28 @@
 
 typedef unsigned long _align;
 
+/**
+ * The use of bitfields take away the scope for multi-threding 
+ * as bitfields are not thread-safe. 
+ * For now moving ahead with this implementation makes sense as 
+ * this allocator is aimed to be a small learning project and 
+ * not a production level library.
+ */
+typedef struct _aloc_h {
+    struct {
+            size_t is_free      : 1;
+            size_t is_last      : 1;
+            size_t magic_id     : 8;
+            size_t size         : 48;
+            size_t prev_size    : 48;
+            size_t              : 0;
+    };
+} _alloc_head;
+
 
 typedef union header {
     struct {
-        size_t size;
-        size_t prev_size;
-        unsigned int flags;
+        _alloc_head ah;
         union header * next;
         union header * prev;                
     } head;

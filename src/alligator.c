@@ -2,13 +2,13 @@
 
 #include <stdio.h>
 
-_Header * fl_sml = NULL;
-_Header * fl_mid = NULL;
-_Header * fl_lrg = NULL;
+static _Header * fl_sml = NULL;
+static _Header * fl_mid = NULL;
+static _Header * fl_lrg = NULL;
 
 
 
-static _Header * _mmap (size_t size, int flags) {
+static _Header * _mmap (size_t size) {
 
     size_t tt_size = size + sizeof (_Header);
 
@@ -19,11 +19,13 @@ static _Header * _mmap (size_t size, int flags) {
         return NULL;
     }
     
-    slab->head.flags        = flags;
-    slab->head.size         = size;
-    slab->head.prev_size    = 0;
-    slab->head.prev         = NULL;
-    slab->head.next         = NULL;
+    slab->head.ah.is_free       = 1;
+    slab->head.ah.is_last       = 1;
+    slab->head.ah.magic_id      = MAGIC_NUMBER;
+    slab->head.ah.size          = size;
+    slab->head.ah.prev_size     = 0;
+    slab->head.prev             = NULL;
+    slab->head.next             = NULL;
 
     return slab;
 
@@ -40,8 +42,8 @@ static _Header * _fl_add (_Header * fl, _Header * slab) {
     fl->head.next = slab;
     slab->head.prev = fl;
 
-    slab->head.next->head.prev_size = slab->head.size;
-    slab->head.prev_size = fl->head.size;
+    slab->head.next->head.ah.prev_size = slab->head.ah.size;
+    slab->head.ah.prev_size = fl->head.ah.size;
 
     return slab;
 }
@@ -55,13 +57,20 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
 
     do {
         size_t min_size = max (FREE_H_SIZE, size + ALOC_H_SIZE);
-        if ((st->head.size + FREE_H_SIZE) > min_size) {
+        if ((st->head.ah.size + FREE_H_SIZE) > min_size) {
 
-            st->head.size = st->head.size - min_size ;
-            _Header * f_blk = ((_Header *) ((char *) st + FREE_H_SIZE + st->head.size ));
+            st->head.ah.size = st->head.ah.size - min_size ;
+            _Header * f_blk = ((_Header *) ((char *) st + FREE_H_SIZE + st->head.ah.size ));
 
-            f_blk->head.size = size;
-            f_blk->head.prev_size = st->head.size;
+            if (st->head.ah.is_last) {
+                st->head.ah.is_last = 0;
+                f_blk->head.ah.is_last = 1;
+            }
+
+            f_blk->head.ah.is_free = 0;
+            f_blk->head.ah.magic_id = MAGIC_NUMBER;
+            f_blk->head.ah.size = size;
+            f_blk->head.ah.prev_size = st->head.ah.size;
                 
             return f_blk;
         }
@@ -87,16 +96,20 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
  */
 void * mm_alloc (size_t size) {
 
-    unsigned int init_flags = IS_FREE | IS_FRST_BLK | IS_LAST_BLK;
     _Header * fl;
     _Header * f_blk = NULL;
     size_t slab_size = 0;
+
+    if ( size > SLAB_SIZE_LRG ) {
+        f_blk = _mmap (size);
+        return f_blk ? (void *) ((char *) f_blk + ALOC_H_SIZE) : NULL;
+    }
 
     if ( size <= SLAB_SIZE_SML ) {
 
         slab_size = SLAB_SIZE_SML;
         if (!fl_sml ) {
-            fl_sml = _mmap (slab_size, init_flags);
+            fl_sml = _mmap (slab_size);
             fl_sml->head.next = fl_sml->head.prev = fl_sml;
         }  
         fl = fl_sml;
@@ -105,45 +118,90 @@ void * mm_alloc (size_t size) {
 
         slab_size = SLAB_SIZE_MID;
         if (!fl_mid) {
-            fl_mid = _mmap (slab_size, init_flags);
+            fl_mid = _mmap (slab_size);
             fl_mid->head.next = fl_mid->head.prev = fl_mid;
         }  
         fl = fl_mid;
     }
-    else if (size <= SLAB_SIZE_LRG ) {
+    else {
 
         slab_size = SLAB_SIZE_LRG;
         if (!fl_lrg) {
-            fl_lrg = _mmap (slab_size, init_flags);
+            fl_lrg = _mmap (slab_size);
             fl_lrg->head.next = fl_lrg->head.prev = fl_lrg;
         } 
         fl = fl_lrg;
-    } 
-    else {
-        f_blk = _mmap(size, IS_HUGE_BLK);
-        return f_blk ? (void *) ((char *) f_blk + ALOC_H_SIZE) : NULL;
     }
 
-    f_blk = _find_f_blk(fl, size);
+    f_blk = _find_f_blk (fl, size);
 
     if (!f_blk) {
-         _Header * new_slab = _mmap (slab_size, init_flags);
+         _Header * new_slab = _mmap (slab_size);
          if (new_slab) {
-            fl = _fl_add(fl, new_slab);
-            f_blk = _find_f_blk(fl, size);
+            fl = _fl_add (fl, new_slab);
+            f_blk = _find_f_blk (fl, size);
         }
     }
 
     return f_blk ? ((void *) ((char *) f_blk + ALOC_H_SIZE)) : NULL;
 }
 
-
+/**
+ * 1. Get the pointer of the header from the blk.
+ * 2. Check if the header is valid or not.
+ * 3. If not valid, generate trap. If valid, continue with below.
+ * 4. Check if the header is of size greater than the largest slab, 
+ *    if yes, free with munmap directly else continue.
+ * 5. Determine the slab list to put the freed blk.
+ * 6. If next block is free -> coalesc and update size, adjust pointers
+ * 7. If prev block is free -> coalesc and update size, adjust pointers
+ * 8. If the final block is equal to the slab size, free it.
+ * 9. If a new free blk, put on the free_list, adjust pointers
+ * 
+ */
 void mm_free ( void * mem ) {
 
     _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
 
-    if (blk->head.size > SLAB_SIZE_LRG) {
-        munmap(blk, blk->head.size + ALOC_H_SIZE);
+    // Check Header validity
+    // Range check, alignment check, magic number check 
+    // how to do above without increasing header size?
+    // For now assuming that these are in place and that only 
+    // valid memory allocations would be calling mm_free()
+    
+    if (blk->head.ah.magic_id != MAGIC_NUMBER) {
+        const char * err_msg = "err: memory requested to free was not allocated!\n";
+        write (STDERR_FILENO, err_msg, strlen (err_msg));
+        abort();
     }
+    
+
+    if (blk->head.ah.size > SLAB_SIZE_LRG) {
+        munmap (blk, blk->head.ah.size + ALOC_H_SIZE);
+        return;
+    }
+
+    size_t min_size = max (FREE_H_SIZE, ALOC_H_SIZE + blk->head.ah.size);
+    
+
+    // Coalesc with next
+    if (!blk->head.ah.is_last) {
+
+        _Header * n_blk = blk + min_size;
+        if (n_blk->head.ah.is_free) {
+            // Do I need to clear up the bits of the next blk's header?
+
+        }
+
+    }
+
+
+    // Coalesc with prev
+    if (blk->head.ah.prev_size != 0 && (blk->head.ah.is_free)) {
+
+    }
+
+
+    // F
 
 }
