@@ -23,7 +23,7 @@ static _Header * _mmap (size_t size) {
     slab->head.ah.is_last       = 1;
     slab->head.ah.magic_id      = MAGIC_NUMBER;
     slab->head.ah.size          = size;
-    slab->head.ah.prev_size     = 0;
+    slab->head.ah.pblk_size     = 0;
     slab->head.prev             = NULL;
     slab->head.next             = NULL;
 
@@ -31,21 +31,20 @@ static _Header * _mmap (size_t size) {
 
 }
 
-static _Header * _fl_add (_Header * fl, _Header * slab) {
+static _Header * _fl_add (_Header * fl, _Header * chunk) {
 
     if (!fl) {
-        return slab;
+        return chunk;
     }
 
-    slab->head.next = fl->head.next;
-    fl->head.next->head.prev = slab;
-    fl->head.next = slab;
-    slab->head.prev = fl;
+    chunk->head.next = fl->head.next;
+    fl->head.next->head.prev = chunk;
+    fl->head.next = chunk;
+    chunk->head.prev = fl;
 
-    slab->head.next->head.ah.prev_size = slab->head.ah.size;
-    slab->head.ah.prev_size = fl->head.ah.size;
+    fl = chunk;
 
-    return slab;
+    return fl;
 }
 
 static _Header * _find_f_blk (_Header * fl, size_t size) {
@@ -69,8 +68,8 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
 
             f_blk->head.ah.is_free = 0;
             f_blk->head.ah.magic_id = MAGIC_NUMBER;
-            f_blk->head.ah.size = size;
-            f_blk->head.ah.prev_size = st->head.ah.size;
+            f_blk->head.ah.size = min_size - ALOC_H_SIZE;
+            f_blk->head.ah.pblk_size = st->head.ah.size;
                 
             return f_blk;
         }
@@ -169,39 +168,89 @@ void mm_free ( void * mem ) {
     // For now assuming that these are in place and that only 
     // valid memory allocations would be calling mm_free()
     
-    if (blk->head.ah.magic_id != MAGIC_NUMBER) {
+    if ( (blk->head.ah.magic_id & ~MAGIC_NUMBER) != 0 ) {
         const char * err_msg = "err: memory requested to free was not allocated!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
         abort();
     }
-    
+
+    if (blk->head.ah.is_free) {
+        const char * err_msg = "err: memory requested is already free!\n";
+        write (STDERR_FILENO, err_msg, strlen (err_msg));
+        abort();
+    }
 
     if (blk->head.ah.size > SLAB_SIZE_LRG) {
         munmap (blk, blk->head.ah.size + ALOC_H_SIZE);
         return;
     }
 
-    size_t min_size = max (FREE_H_SIZE, ALOC_H_SIZE + blk->head.ah.size);
-    
+    _Header *fl = NULL;
+    blk->head.ah.is_free = 1;
 
-    // Coalesc with next
+    if (blk->head.ah.size <= SLAB_SIZE_SML) {
+        fl = fl_sml ? fl_sml 
+            : (blk->head.next = blk->head.prev = blk) ;
+    }
+    else if (blk->head.ah.size <= SLAB_SIZE_MID) {
+        fl = fl_mid ? fl_mid
+            : (blk->head.next = blk->head.prev = blk) ;
+    }
+    else {
+        fl = fl_lrg ? fl_lrg
+            : (blk->head.next = blk->head.prev = blk) ;
+    }
+
+    if (fl == blk) {
+        return;
+    }
+
+    size_t min_size = max (FREE_H_SIZE, ALOC_H_SIZE + blk->head.ah.size);
+    int is_on_fl = 0;
+
+    /* Coalesc with next blk if it exists and is free. */
     if (!blk->head.ah.is_last) {
 
         _Header * n_blk = blk + min_size;
         if (n_blk->head.ah.is_free) {
-            // Do I need to clear up the bits of the next blk's header?
+            
+            blk->head.ah.is_last        = n_blk->head.ah.is_last;
+            blk->head.ah.size           = blk->head.ah.size 
+                                            + ALOC_H_SIZE 
+                                            + n_blk->head.ah.size;
+            blk->head.next              = n_blk->head.next;
+            blk->head.prev              = n_blk->head.prev;
 
+            n_blk->head.next->head.prev = blk;
+            n_blk->head.prev->head.next = blk;
+
+            is_on_fl = 1;
         }
 
     }
 
+    /* Coalesc with prev blk if it exists and is free */
+    if (blk->head.ah.pblk_size != 0) {
 
-    // Coalesc with prev
-    if (blk->head.ah.prev_size != 0 && (blk->head.ah.is_free)) {
+        _Header * p_blk = (_Header *) ((char *) blk - (blk->head.ah.pblk_size + FREE_H_SIZE));
 
+        if ( !(p_blk->head.ah.magic_id & ~MAGIC_NUMBER) && (p_blk->head.ah.is_free & 1) ) {
+        
+            p_blk->head.ah.size         = p_blk->head.ah.size + min_size;
+            p_blk->head.ah.is_last      = blk->head.ah.is_last;
+            
+            if (!p_blk->head.ah.is_last) {
+                _Header *n_blk = blk + min_size;
+                n_blk->head.ah.pblk_size = p_blk->head.ah.size;
+            }
+
+            is_on_fl = 1;
+        }
     }
 
-
-    // F
+    /* Add to free list if the block is not coalesced and hence not on free list */ 
+    if (!is_on_fl) {
+        fl = _fl_add (fl, blk);
+    }
 
 }

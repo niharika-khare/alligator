@@ -45,7 +45,7 @@ typedef struct _aloc_h {
             size_t is_last      : 1;
             size_t magic_id     : 8;
             size_t size         : 48;
-            size_t prev_size    : 48;
+            size_t pblk_size    : 48;
             size_t              : 0;
     };
 } _alloc_head;
