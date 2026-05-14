@@ -15,9 +15,7 @@ static _Header * _mmap (size_t size) {
     _Header * slab = mmap (NULL, tt_size, PROT_READ | PROT_WRITE,
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-    if (slab == MAP_FAILED) {
-        return NULL;
-    }
+    if (slab == MAP_FAILED) return NULL;
     
     slab->head.ah.is_free       = 1;
     slab->head.ah.is_last       = 1;
@@ -31,11 +29,10 @@ static _Header * _mmap (size_t size) {
 
 }
 
+
 static _Header * _fl_add (_Header * fl, _Header * chunk) {
 
-    if (!fl) {
-        return chunk;
-    }
+    if (!fl) return chunk;
 
     chunk->head.next = fl->head.next;
     fl->head.next->head.prev = chunk;
@@ -47,11 +44,38 @@ static _Header * _fl_add (_Header * fl, _Header * chunk) {
     return fl;
 }
 
+
+/**
+ * If the blk to be freed equals slab size or blk allocation follows whole block path then:
+ *  1. If it's the only remaining slab on the free list, then bring the free list back to 
+ *     the initial state for future allocation.
+ *  2. If not the only slab, move the corresponding free list pointer to next slab
+ */
+static void _fl_dereference (size_t blk_tt_size, _Header * blk) {
+
+    if (!blk) return;
+    
+    if ((blk_tt_size == (SLAB_SIZE_SML + FREE_H_SIZE)) && (fl_sml) && (fl_sml == blk)) {
+        
+        fl_sml = (fl_sml == fl_sml->head.next) ? NULL : fl_sml->head.next;
+        return;
+    }
+    if ((blk_tt_size == (SLAB_SIZE_MID + FREE_H_SIZE)) && (fl_mid) && (fl_mid == blk)) {
+        
+        fl_mid = (fl_mid == fl_mid->head.next) ? NULL : fl_mid->head.next;
+        return;
+    }
+    if ((blk_tt_size == (SLAB_SIZE_LRG + FREE_H_SIZE)) && (fl_lrg) && (fl_lrg == blk)) {  
+        
+        fl_lrg = (fl_lrg == fl_lrg->head.next) ? NULL : fl_lrg->head.next;
+        return;
+    }
+}
+
+
 static _Header * _find_f_blk (_Header * fl, size_t size) {
     
-    if (!fl) {
-        return NULL;
-    }
+    if (!fl) return NULL;
 
     _Header * st = fl;
     do {
@@ -87,7 +111,11 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
             _Header * f_blk = st;
 
             f_blk->head.ah.is_free = 0;
+            f_blk->head.ah.is_last = st->head.ah.is_last;
             f_blk->head.ah.size = f_blk->head.ah.size + FREE_H_SIZE - ALOC_H_SIZE;
+
+            size_t blk_tt_size = f_blk->head.ah.size + ALOC_H_SIZE;
+            _fl_dereference (blk_tt_size, f_blk);
 
             st->head.next->head.prev = st->head.prev;
             st->head.prev->head.next = st->head.next;
@@ -112,8 +140,11 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
  * 6. If a free blk is found (first - fit ) then split the blk, the rear end of the splitted block 
  *    is return to the user (with striped off pointers for prev and next and the flags) and the 
  *    front end's size and pointers are adjusted and it remains on the free list.
+ * 7. mm_alloc(0) would return a pointer to address whose ptr->head.ah.size = 0
  */
 void * mm_alloc (size_t size) {
+
+    if (size < 0) return NULL;
 
     _Header * fl;
     _Header * f_blk = NULL;
@@ -168,47 +199,27 @@ void * mm_alloc (size_t size) {
 
 
 /**
- * If the blk to be freed equals slab size and it's the only remaining slab 
- * on the free list, then bring the free list back to the initial state for 
- * future allocation.
- */
-void _fl_dereference (size_t slab_size) {
-
-    if (slab_size == SLAB_SIZE_SML) {
-        fl_sml = NULL;
-        return;
-    }
-    if (slab_size == SLAB_SIZE_MID) {
-        fl_mid = NULL;
-        return;
-    }
-    if (slab_size == SLAB_SIZE_LRG) {
-        fl_lrg = NULL;
-        return;
-    }
-}
-
-/**
  * Check Header validity via the following methods (in sequence):
  *  1. Range check of the blk address
  *  2. Alignment check
  *  3. Magic number check 
  *  4. Check if the the block is not already free.
  */
-int _is_valid_blk (_Header * blk) {
+static int _is_valid_blk (_Header * blk) {
 
     if (blk->head.ah.magic_id != MAGIC_NUMBER) {
-        const char * err_msg = "err: memory requested to free was not allocated!\n";
+        const char * err_msg = "err: memory was not allocated!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
         return -1;
     }
     if (blk->head.ah.is_free) {
-        const char * err_msg = "err: memory requested is already free!\n";
+        const char * err_msg = "err: memory is free!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
         return -1;
     }
     return 0;
 }
+
 
 /**
  * 1. Get the pointer of the header from the blk.
@@ -221,14 +232,16 @@ int _is_valid_blk (_Header * blk) {
  * 7. If prev block is free -> coalesc and update size, adjust pointers
  * 8. If the final block is equal to the slab size, free it.
  * 9. If a new free blk, put on the free_list, adjust pointers
+ * 10. mm_free(NULL) is valid and would do nothing
  */
 void mm_free ( void * mem ) {
 
+    if (!mem) return;
+
     _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
     
-    if (_is_valid_blk(blk) == -1 ) {
-        abort();
-    }
+    if (_is_valid_blk(blk) == -1) abort();
+    
 
     size_t blk_tt_size = blk->head.ah.size + ALOC_H_SIZE;
 
@@ -237,7 +250,6 @@ void mm_free ( void * mem ) {
         blk_tt_size >= SLAB_SIZE_LRG + FREE_H_SIZE) {
 
             munmap (blk, blk_tt_size);
-            _fl_dereference(blk_tt_size - FREE_H_SIZE);
             return;
     }
 
@@ -249,31 +261,28 @@ void mm_free ( void * mem ) {
 
         slab_size = SLAB_SIZE_SML;
         fl = fl_sml ? fl_sml 
-            : (blk->head.next = blk->head.prev = blk) ;
+            : (fl_sml = blk->head.next = blk->head.prev = blk) ;
     } 
     else if (blk_tt_size < SLAB_SIZE_MID + FREE_H_SIZE) {
 
         slab_size = SLAB_SIZE_MID;
         fl = fl_mid ? fl_mid
-            : (blk->head.next = blk->head.prev = blk) ;
+            : (fl_mid = blk->head.next = blk->head.prev = blk) ;
     }
     else {
         slab_size = SLAB_SIZE_LRG;
         fl = fl_lrg ? fl_lrg
-            : (blk->head.next = blk->head.prev = blk) ;
+            : (fl_lrg = blk->head.next = blk->head.prev = blk) ;
     }
 
-    if (fl == blk) {
-        return;
-    }
+    if (fl == blk) return;
 
-    size_t min_size = max (FREE_H_SIZE, blk_tt_size);
     int is_on_fl = 0;
 
     /* Coalesc with next blk if it exists and is free. */
     if (!blk->head.ah.is_last) {
 
-        _Header * n_blk = blk + min_size;
+        _Header * n_blk = (_Header *) ((char *) blk + blk_tt_size);
         if (n_blk->head.ah.is_free) {
             
             blk->head.ah.is_last        = n_blk->head.ah.is_last;
@@ -285,6 +294,11 @@ void mm_free ( void * mem ) {
             n_blk->head.prev->head.next = blk;
 
             is_on_fl = 1;
+            blk_tt_size = blk->head.ah.size + FREE_H_SIZE;
+
+            if (fl_sml == n_blk) fl_sml = blk; 
+            if (fl_mid == n_blk) fl_mid = blk; 
+            if (fl_lrg == n_blk) fl_lrg = blk; 
         }
 
     }
@@ -296,11 +310,11 @@ void mm_free ( void * mem ) {
 
         if ( !(p_blk->head.ah.magic_id & ~MAGIC_NUMBER) && (p_blk->head.ah.is_free & 1) ) {
         
-            p_blk->head.ah.size         = p_blk->head.ah.size + min_size;
+            p_blk->head.ah.size         = p_blk->head.ah.size + blk_tt_size;
             p_blk->head.ah.is_last      = blk->head.ah.is_last;
             
             if (!p_blk->head.ah.is_last) {
-                _Header *n_blk = blk + min_size;
+                _Header * n_blk = (_Header *) ((char *) blk + blk_tt_size);
                 n_blk->head.ah.pblk_size = p_blk->head.ah.size;
             }
 
@@ -309,9 +323,14 @@ void mm_free ( void * mem ) {
             if (is_on_fl) {
                 blk->head.next->head.prev = blk->head.prev;
                 blk->head.prev->head.next = blk->head.next;
+
+                if (fl_sml == blk) fl_sml = p_blk; 
+                if (fl_mid == blk) fl_mid = p_blk; 
+                if (fl_lrg == blk) fl_lrg = p_blk; 
             }
             
             blk = p_blk;
+            blk_tt_size = blk->head.ah.size + FREE_H_SIZE;
             is_on_fl = 1;
         }
     }
@@ -319,14 +338,12 @@ void mm_free ( void * mem ) {
     /* If blk is coalesced into a slab, re-link it's pointers and free it */
     if (blk->head.ah.size == slab_size) {
 
+        _fl_dereference(blk_tt_size, blk);
+
         blk->head.next->head.prev = blk->head.prev;
         blk->head.prev->head.next = blk->head.next;
 
-        if ((fl == blk) && (fl == fl->head.next)) {
-            _fl_dereference(slab_size);
-        }
-
-        munmap (blk, blk->head.ah.size + FREE_H_SIZE);
+        munmap (blk, blk_tt_size);
         return;
     }
 
@@ -334,5 +351,4 @@ void mm_free ( void * mem ) {
     if (!is_on_fl) {
         fl = _fl_add (fl, blk);
     }
-
 }

@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
 #define max(a,b)  (((a) > (b)) ? (a) : (b))
 
@@ -13,13 +14,13 @@
 #define PAGE_SIZE                   sysconf(_SC_PAGESIZE)
 #define FREE_H_SIZE                 sizeof (_Header)
 #define ALOC_H_SIZE                 sizeof (_alloc_head)
-#define MAGIC_NUMBER                0xFF
+#define MAGIC_NUMBER                0xA2F5
 
 
 /** Different slab size to avoid over allocation */
-#define SLAB_SIZE_SML               PAGE_SIZE - FREE_H_SIZE
-#define SLAB_SIZE_MID               1024 * PAGE_SIZE - FREE_H_SIZE
-#define SLAB_SIZE_LRG               1024 * 1024 * PAGE_SIZE - FREE_H_SIZE
+#define SLAB_SIZE_SML               (size_t) (PAGE_SIZE - FREE_H_SIZE)
+#define SLAB_SIZE_MID               (size_t) (1024 * PAGE_SIZE - FREE_H_SIZE)
+#define SLAB_SIZE_LRG               (size_t) (1024 * 1024 * PAGE_SIZE - FREE_H_SIZE)
 
 
 typedef unsigned long _align;
@@ -35,10 +36,12 @@ typedef struct _aloc_h {
     struct {
             size_t is_free      : 1;
             size_t is_last      : 1;
-            size_t magic_id     : 8;
             size_t size         : 48;
-            size_t pblk_size    : 48;
             size_t              : 0;
+            size_t pblk_size    : 48;
+            size_t magic_id     : 16;
+            size_t              : 0;
+            
     };
 } _alloc_head;
 
