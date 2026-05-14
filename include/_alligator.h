@@ -11,7 +11,16 @@
 #define max(a,b)  (((a) > (b)) ? (a) : (b))
 
 
-#define PAGE_SIZE                   sysconf(_SC_PAGESIZE)
+static inline size_t _get_page_size() {
+
+    static size_t page_size = 0;
+    if (!page_size) {
+        page_size = sysconf(_SC_PAGESIZE);
+    }
+    return page_size;
+}
+
+#define PAGE_SIZE                   _get_page_size()
 #define FREE_H_SIZE                 sizeof (_Header)
 #define ALOC_H_SIZE                 sizeof (_alloc_head)
 #define MAGIC_NUMBER                0xA2F5

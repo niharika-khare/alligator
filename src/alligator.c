@@ -144,8 +144,6 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
  */
 void * mm_alloc (size_t size) {
 
-    if (size < 0) return NULL;
-
     _Header * fl;
     _Header * f_blk = NULL;
     size_t slab_size = 0;
@@ -200,8 +198,8 @@ void * mm_alloc (size_t size) {
 
 /**
  * Check Header validity via the following methods (in sequence):
- *  1. Range check of the blk address
- *  2. Alignment check
+ *  1. Range check of the blk address (TODO)
+ *  2. Alignment check (TODO)
  *  3. Magic number check 
  *  4. Check if the the block is not already free.
  */
@@ -308,7 +306,7 @@ void mm_free ( void * mem ) {
 
         _Header * p_blk = (_Header *) ((char *) blk - (blk->head.ah.pblk_size + FREE_H_SIZE));
 
-        if ( !(p_blk->head.ah.magic_id & ~MAGIC_NUMBER) && (p_blk->head.ah.is_free & 1) ) {
+        if ( (p_blk->head.ah.magic_id == MAGIC_NUMBER) && p_blk->head.ah.is_free ) {
         
             p_blk->head.ah.size         = p_blk->head.ah.size + blk_tt_size;
             p_blk->head.ah.is_last      = blk->head.ah.is_last;
@@ -350,5 +348,31 @@ void mm_free ( void * mem ) {
     /* Add to free list if the block is not coalesced and hence not on free list */ 
     if (!is_on_fl) {
         fl = _fl_add (fl, blk);
+
+        if (slab_size == SLAB_SIZE_SML) fl_sml = fl; 
+        if (slab_size == SLAB_SIZE_MID) fl_mid = fl; 
+        if (slab_size == SLAB_SIZE_LRG) fl_lrg = fl; 
     }
+}
+
+/**
+ * Basic realloc implementation which always allocates a new block, copies 
+ * `min(old_size, new_size)` bytes, and frees the original.
+ */
+void * mm_realloc(void * mem, size_t size) {
+
+    if (!mem) return mm_alloc(size);
+
+    _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE) ;
+    if (_is_valid_blk(blk) == -1) abort();
+
+    size_t blk_size = blk->head.ah.size;
+    
+    void * new_mem = mm_alloc(size);
+    if (!new_mem) return NULL;
+
+    memcpy (new_mem, mem, min (blk_size, size));
+    mm_free(mem);
+
+    return new_mem;
 }
