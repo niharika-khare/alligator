@@ -78,6 +78,8 @@ void   mm_free    (void * mem);
 
 ## Building
 
+``main.c`` is the driver file for testing this library. Any new use cases can added to it when experimenting with any new features.
+
 ```bash
 
 make help               # To see make targets
