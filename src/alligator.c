@@ -29,8 +29,46 @@ static _Header * _mmap (size_t size) {
 
 }
 
+/**
+ * Check Header validity via the following methods (in sequence):
+ *  1. Range check of the blk address (TODO)
+ *  2. Alignment check (TODO)
+ *  3. Magic number check 
+ *  4. Check if the the block is not already free.
+ */
+static int _is_valid_blk (_Header * blk) {
+
+    if (blk->head.ah.magic_id != MAGIC_NUMBER) {
+        const char * err_msg = "err: memory was not allocated!\n";
+        write (STDERR_FILENO, err_msg, strlen (err_msg));
+        return -1;
+    }
+    if (blk->head.ah.is_free) {
+        const char * err_msg = "err: memory is free!\n";
+        write (STDERR_FILENO, err_msg, strlen (err_msg));
+        return -1;
+    }
+    return 0;
+}
+
 
 static _Header * _fl_add (_Header * fl, _Header * chunk) {
+
+    if (!chunk) return fl;
+
+    if (_is_valid_blk(chunk) == -1) abort();
+
+    if (!chunk->head.ah.is_free) {
+
+        chunk->head.ah.is_free = 1;
+        size_t chunk_tt_size = chunk->head.ah.size + ALOC_H_SIZE;
+        chunk->head.ah.size = chunk_tt_size - FREE_H_SIZE;
+
+        if (!chunk->head.ah.is_last) {
+            _Header * n_blk = (_Header *) ((char *) chunk + chunk_tt_size);
+            n_blk->head.ah.pblk_size = chunk->head.ah.size;
+        }
+    }
 
     if (!fl) return chunk;
 
@@ -39,7 +77,9 @@ static _Header * _fl_add (_Header * fl, _Header * chunk) {
     fl->head.next = chunk;
     chunk->head.prev = fl;
 
-    fl = chunk;
+    if (fl == fl_sml) fl_sml = fl = chunk; 
+    if (fl == fl_mid) fl_mid = fl = chunk; 
+    if (fl == fl_lrg) fl_lrg = fl = chunk; 
 
     return fl;
 }
@@ -55,19 +95,22 @@ static void _fl_dereference (size_t blk_tt_size, _Header * blk) {
 
     if (!blk) return;
     
-    if ((blk_tt_size == (SLAB_SIZE_SML + FREE_H_SIZE)) && (fl_sml) && (fl_sml == blk)) {
+    if ((fl_sml) && (fl_sml == blk)) {
         
-        fl_sml = (fl_sml == fl_sml->head.next) ? NULL : fl_sml->head.next;
+        fl_sml = ((blk_tt_size == (SLAB_SIZE_SML + FREE_H_SIZE)) && (fl_sml == fl_sml->head.next)) 
+               ? NULL : fl_sml->head.next;
         return;
     }
-    if ((blk_tt_size == (SLAB_SIZE_MID + FREE_H_SIZE)) && (fl_mid) && (fl_mid == blk)) {
+    if ((fl_mid) && (fl_mid == blk)) {
         
-        fl_mid = (fl_mid == fl_mid->head.next) ? NULL : fl_mid->head.next;
+        fl_mid = ((blk_tt_size == (SLAB_SIZE_MID + FREE_H_SIZE)) && (fl_mid == fl_mid->head.next)) 
+               ? NULL : fl_mid->head.next;
         return;
     }
-    if ((blk_tt_size == (SLAB_SIZE_LRG + FREE_H_SIZE)) && (fl_lrg) && (fl_lrg == blk)) {  
+    if ((fl_lrg) && (fl_lrg == blk)) {  
         
-        fl_lrg = (fl_lrg == fl_lrg->head.next) ? NULL : fl_lrg->head.next;
+        fl_lrg = ((blk_tt_size == (SLAB_SIZE_LRG + FREE_H_SIZE)) && (fl_lrg == fl_lrg->head.next)) 
+               ? NULL : fl_lrg->head.next;
         return;
     }
 }
@@ -150,7 +193,10 @@ void * mm_alloc (size_t size) {
     size_t tt_size = size + ALOC_H_SIZE;
 
     if (tt_size > SLAB_SIZE_LRG + FREE_H_SIZE) {
+        
         f_blk = _mmap (size);
+        if (f_blk) f_blk->head.ah.is_free = 0;
+
         return f_blk ? (void *) ((char *) f_blk + ALOC_H_SIZE) : NULL;
     }
 
@@ -197,29 +243,6 @@ void * mm_alloc (size_t size) {
 
 
 /**
- * Check Header validity via the following methods (in sequence):
- *  1. Range check of the blk address (TODO)
- *  2. Alignment check (TODO)
- *  3. Magic number check 
- *  4. Check if the the block is not already free.
- */
-static int _is_valid_blk (_Header * blk) {
-
-    if (blk->head.ah.magic_id != MAGIC_NUMBER) {
-        const char * err_msg = "err: memory was not allocated!\n";
-        write (STDERR_FILENO, err_msg, strlen (err_msg));
-        return -1;
-    }
-    if (blk->head.ah.is_free) {
-        const char * err_msg = "err: memory is free!\n";
-        write (STDERR_FILENO, err_msg, strlen (err_msg));
-        return -1;
-    }
-    return 0;
-}
-
-
-/**
  * 1. Get the pointer of the header from the blk.
  * 2. Check if the header is valid or not.
  * 3. If not valid, generate trap. If valid, continue with below.
@@ -253,7 +276,6 @@ void mm_free ( void * mem ) {
 
     _Header *fl = NULL;
     size_t slab_size = 0;
-    blk->head.ah.is_free = 1;
 
     if (blk_tt_size < SLAB_SIZE_SML + FREE_H_SIZE) {
 
@@ -283,6 +305,7 @@ void mm_free ( void * mem ) {
         _Header * n_blk = (_Header *) ((char *) blk + blk_tt_size);
         if (n_blk->head.ah.is_free) {
             
+            blk->head.ah.is_free        = 1;
             blk->head.ah.is_last        = n_blk->head.ah.is_last;
             blk->head.ah.size           = blk_tt_size + n_blk->head.ah.size;
             blk->head.next              = n_blk->head.next;
@@ -348,10 +371,6 @@ void mm_free ( void * mem ) {
     /* Add to free list if the block is not coalesced and hence not on free list */ 
     if (!is_on_fl) {
         fl = _fl_add (fl, blk);
-
-        if (slab_size == SLAB_SIZE_SML) fl_sml = fl; 
-        if (slab_size == SLAB_SIZE_MID) fl_mid = fl; 
-        if (slab_size == SLAB_SIZE_LRG) fl_lrg = fl; 
     }
 }
 
