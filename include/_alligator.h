@@ -1,6 +1,7 @@
 #ifndef _ALLIGATOR_INTERNALS_H_
 #define _ALLIGATOR_INTERNALS_H_
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -32,7 +33,7 @@ static inline size_t _get_page_size() {
 #define SLAB_SIZE_LRG               (size_t) (1024 * 1024 * PAGE_SIZE - FREE_H_SIZE)
 
 
-typedef unsigned long _align;
+typedef max_align_t _align;
 
 /**
  * The use of bitfields take away the scope for multi-threding 

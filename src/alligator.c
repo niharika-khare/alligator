@@ -36,7 +36,7 @@ static _Header * _mmap (size_t size) {
  *  3. Magic number check 
  *  4. Check if the the block is not already free.
  */
-static int _is_valid_blk (_Header * blk) {
+static int _is_valid_alloc_blk (_Header * blk) {
 
     if (blk->head.ah.magic_id != MAGIC_NUMBER) {
         const char * err_msg = "err: memory was not allocated!\n";
@@ -55,8 +55,6 @@ static int _is_valid_blk (_Header * blk) {
 static _Header * _fl_add (_Header * fl, _Header * chunk) {
 
     if (!chunk) return fl;
-
-    if (_is_valid_blk(chunk) == -1) abort();
 
     if (!chunk->head.ah.is_free) {
 
@@ -78,8 +76,8 @@ static _Header * _fl_add (_Header * fl, _Header * chunk) {
     chunk->head.prev = fl;
 
     if (fl == fl_sml) fl_sml = fl = chunk; 
-    if (fl == fl_mid) fl_mid = fl = chunk; 
-    if (fl == fl_lrg) fl_lrg = fl = chunk; 
+    else if (fl == fl_mid) fl_mid = fl = chunk; 
+    else if (fl == fl_lrg) fl_lrg = fl = chunk; 
 
     return fl;
 }
@@ -255,13 +253,13 @@ void * mm_alloc (size_t size) {
  * 9. If a new free blk, put on the free_list, adjust pointers
  * 10. mm_free(NULL) is valid and would do nothing
  */
-void mm_free ( void * mem ) {
+void mm_free ( void * restrict mem ) {
 
     if (!mem) return;
 
-    _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
+    _Header * restrict blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
     
-    if (_is_valid_blk(blk) == -1) abort();
+    if (_is_valid_alloc_blk(blk) == -1) abort();
     
 
     size_t blk_tt_size = blk->head.ah.size + ALOC_H_SIZE;
@@ -274,7 +272,7 @@ void mm_free ( void * mem ) {
             return;
     }
 
-    _Header *fl = NULL;
+    _Header * fl = NULL;
     size_t slab_size = 0;
 
     if (blk_tt_size < SLAB_SIZE_SML + FREE_H_SIZE) {
@@ -318,8 +316,8 @@ void mm_free ( void * mem ) {
             blk_tt_size = blk->head.ah.size + FREE_H_SIZE;
 
             if (fl_sml == n_blk) fl_sml = blk; 
-            if (fl_mid == n_blk) fl_mid = blk; 
-            if (fl_lrg == n_blk) fl_lrg = blk; 
+            else if (fl_mid == n_blk) fl_mid = blk; 
+            else if (fl_lrg == n_blk) fl_lrg = blk; 
         }
 
     }
@@ -346,8 +344,8 @@ void mm_free ( void * mem ) {
                 blk->head.prev->head.next = blk->head.next;
 
                 if (fl_sml == blk) fl_sml = p_blk; 
-                if (fl_mid == blk) fl_mid = p_blk; 
-                if (fl_lrg == blk) fl_lrg = p_blk; 
+                else if (fl_mid == blk) fl_mid = p_blk; 
+                else if (fl_lrg == blk) fl_lrg = p_blk; 
             }
             
             blk = p_blk;
@@ -383,7 +381,7 @@ void * mm_realloc(void * mem, size_t size) {
     if (!mem) return mm_alloc(size);
 
     _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE) ;
-    if (_is_valid_blk(blk) == -1) abort();
+    if (_is_valid_alloc_blk(blk) == -1) abort();
 
     size_t blk_size = blk->head.ah.size;
     
