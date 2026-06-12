@@ -25,6 +25,7 @@ static inline size_t _get_page_size() {
 #define FREE_H_SIZE                 sizeof (_Header)
 #define ALOC_H_SIZE                 sizeof (_alloc_head)
 #define MAGIC_NUMBER                0xA2F5
+#define ALIGNMENT                   sizeof (long int)
 
 
 /** Different slab size to avoid over allocation */

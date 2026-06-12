@@ -188,6 +188,8 @@ void * mm_alloc (size_t size) {
     _Header * fl;
     _Header * f_blk = NULL;
     size_t slab_size = 0;
+
+    size = (size + ALIGNMENT - 1) & (~(ALIGNMENT - 1));
     size_t tt_size = size + ALOC_H_SIZE;
 
     if (tt_size > SLAB_SIZE_LRG + FREE_H_SIZE) {
