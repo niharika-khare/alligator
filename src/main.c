@@ -179,7 +179,7 @@ static void test_struct_array () {
     next ();
 }
 
-/* 6. many independent small allocations — no overlap */
+/* 6. many independent small allocations - no overlap */
 static void test_independence () {
     printf ("--- 6. 80 independent allocs, verify no overlap ---\n");
 
