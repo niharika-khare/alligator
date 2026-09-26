@@ -6,6 +6,7 @@
 
 void * malloc (size_t size) ;
 void * realloc (void * mem, size_t size) ;
+void * calloc (size_t num_ele, size_t size) ;
 void   free (void * mem)  ;
 
 

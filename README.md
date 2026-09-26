@@ -1,6 +1,6 @@
 # 🐊 alligator
 
-A memory alligator (oops! I mean allocator) written in C, built from scratch as a deep-dive into how allocators actually work. Implements `mm_alloc`, `mm_free`, and `mm_realloc` directly on top of `mmap`/`munmap` — no libc heap, no `sbrk`.
+A memory alligator (oops! I mean allocator) written in C, built from scratch as a deep-dive into how allocators actually work. Implements `malloc`, `free`, and `realloc` directly on top of `mmap`/`munmap` — no libc heap, no `sbrk`.
 
 ---
 
@@ -37,7 +37,7 @@ Every block carries a 16-byte header. Free blocks additionally store `next`/`pre
 └─────────────────────────────────┘
 ```
 
-`pblk_size` is the payload size of the immediately preceding block. This is the boundary tag — it lets `mm_free` locate the previous block header in O(1) without storing a footer at the end of every block.
+`pblk_size` is the payload size of the immediately preceding block. This is the boundary tag — it lets `free` locate the previous block header in O(1) without storing a footer at the end of every block.
 
 `magic_id` is set to `0xA2F5` at allocation time and verified on every free. Catches most wild pointer and use-after-free bugs.
 
@@ -52,7 +52,7 @@ Every block carries a 16-byte header. Free blocks additionally store `next`/`pre
 
 1. Recover header from `ptr - ALOC_H_SIZE`
 2. Validate magic + double-free check. Failure → `abort()`
-3. `mm_free(NULL)` is a no-op
+3. `free(NULL)` is a no-op
 4. If block covers a full slab size, `munmap` it directly
 5. Coalesce with the next block if it's free, then with the previous block if it's free
 6. If the merged block equals the slab size, `munmap` the whole slab
@@ -60,18 +60,19 @@ Every block carries a 16-byte header. Free blocks additionally store `next`/`pre
 
 ### Realloc
 
-1. `mm_realloc(ptr, size)` always allocates a new block, copies `min(old_size, new_size)` bytes, and frees the original. 
+1. `realloc(ptr, size)` always allocates a new block, copies `min(old_size, new_size)` bytes, and frees the original. 
 2. So both grow and shrink are handled correctly — shrink truncates, grow copies what exists and leaves the rest uninitialised (consistent with standard `realloc` behaviour). 
-3. `mm_realloc(NULL, size)` behaves like `mm_alloc(size)`.
+3. `realloc(NULL, size)` behaves like `malloc(size)`.
 
 ---
 
 ## API
 
 ```c
-void * mm_alloc   (size_t size);
-void * mm_realloc (void * mem, size_t size);
-void   mm_free    (void * mem);
+void * malloc  (size_t size);
+void * realloc (void * mem, size_t size);
+void * calloc  (size_t num_ele, size_t size);
+void   free    (void * mem);
 ```
 
 ---
@@ -111,7 +112,7 @@ Coalescing needs to remove an arbitrary node from the middle of the free list in
 Each slab is an independent memory range. When a slab is fully reclaimed, `munmap` returns exactly those pages to the OS immediately. With `sbrk` (which is risker and hence on path on deprecation in macOS) we can only shrink the heap from the top — any free slab buried under live allocations stays resident regardless.
 
 **`PAGE_SIZE` cached via a static local.**
-`sysconf(_SC_PAGESIZE)` is a syscall. Since every slab size computation uses `PAGE_SIZE`, calling it on every macro expansion would mean 6+ syscalls per `mm_alloc`. A `static size_t` inside `_get_page_size()` ensures the syscall happens exactly once.
+`sysconf(_SC_PAGESIZE)` is a syscall. Since every slab size computation uses `PAGE_SIZE`, calling it on every macro expansion would mean 6+ syscalls per `malloc`. A `static size_t` inside `_get_page_size()` ensures the syscall happens exactly once.
 
 **`abort()` on corruption, not silent recovery.**
 If `magic_id` doesn't match or `is_free` is already set, the allocator calls `abort()`. There's no safe way to recover from a corrupted header — attempting to continue would likely corrupt more state. Failing loudly makes bugs easier to find.
@@ -125,7 +126,7 @@ The header packs cleanly into two 64-bit words: `is_free(1) + is_last(1) + size(
 
 - **Not thread-safe** — bitfield read-modify-write, free list pointer updates, and slab initialisation are all non-atomic sequences that require a lock.
 - **First-fit only** — no best-fit or next-fit;
-- **`mm_realloc` always copies** — no in-place grow even when the next block is free and the two together would fit
+- **`realloc` always copies** — no in-place grow even when the next block is free and the two together would fit
 - **`_is_valid_blk` doesn't check alignment or range** — a corrupted pointer that passes the magic check by coincidence won't be caught.
 
 ---
@@ -141,7 +142,7 @@ a compact array of `{base, size}` pairs for every live slab. `_is_valid_blk` can
 Before allocating a new block, check if the next block is free and `current_size + next_size >= requested_size`. If so, absorb the next block and return the same pointer — zero copy, zero `mmap`. It's implementation would be different than the current _find_f_blk() as it would need forward split rather than the rear split.
 
 **In-place shrink.**
-For `mm_realloc(ptr, size)` where `size < current_size`, split the current block in place and return the tail to the free list rather than copying. Currently shrink always copies needlessly.
+For `realloc(ptr, size)` where `size < current_size`, split the current block in place and return the tail to the free list rather than copying. Currently shrink always copies needlessly.
 
 **Thread safety.**
 Introduce thread saftey to allow multi-threaded operations on the heap. This would need changes in the header structure as bitfield are not thread-safe.

@@ -63,8 +63,8 @@ static void expect_abort (void (*fn)(), const char *desc) {
 static void test_int_array () {
     printf ("--- 1. int array (small tier) ---\n");
 
-    int *arr = mm_alloc (128 * sizeof (int));
-    check (arr != NULL, "mm_alloc(512 bytes) non-NULL");
+    int *arr = malloc (128 * sizeof (int));
+    check (arr != NULL, "malloc(512 bytes) non-NULL");
 
     for (int i = 0; i < 128; i++) arr[i] = i * i;
 
@@ -72,8 +72,8 @@ static void test_int_array () {
     for (int i = 0; i < 128; i++) ok &= (arr[i] == i * i);
     check (ok, "128 int values read back correctly");
 
-    mm_free (arr);
-    check (1, "mm_free completed");
+    free (arr);
+    check (1, "free completed");
     next ();
 }
 
@@ -81,16 +81,16 @@ static void test_int_array () {
 static void test_struct_vec2 () {
     printf ("--- 2. Vec2 struct allocation ---\n");
 
-    Vec2 *v = mm_alloc (sizeof (Vec2));
-    check (v != NULL, "mm_alloc(sizeof Vec2) non-NULL");
+    Vec2 *v = malloc (sizeof (Vec2));
+    check (v != NULL, "malloc(sizeof Vec2) non-NULL");
 
     v->x = 10; v->y = -3; v->val = 2.718;
 
     check (v->x == 10 && v->y == -3, "int fields correct");
     check (v->val > 2.71 && v->val < 2.72, "double field correct");
 
-    mm_free (v);
-    check (1, "mm_free completed");
+    free (v);
+    check (1, "free completed");
     next ();
 }
 
@@ -98,8 +98,8 @@ static void test_struct_vec2 () {
 static void test_nested_struct () {
     printf ("--- 3. nested struct (Rect -> Vec2) ---\n");
 
-    Rect *r = mm_alloc (sizeof (Rect));
-    check (r != NULL, "mm_alloc(sizeof Rect) non-NULL");
+    Rect *r = malloc (sizeof (Rect));
+    check (r != NULL, "malloc(sizeof Rect) non-NULL");
 
     strncpy (r->label, "viewport", sizeof (r->label) - 1);
     r->origin.x = 0;  r->origin.y = 0;  r->origin.val = 0.0;
@@ -112,8 +112,8 @@ static void test_nested_struct () {
     check (r->id == 7,                               "id correct");
     check (r->scale > 2.4f && r->scale < 2.6f,      "float scale correct");
 
-    mm_free (r);
-    check (1, "mm_free completed");
+    free (r);
+    check (1, "free completed");
     next ();
 }
 
@@ -121,8 +121,8 @@ static void test_nested_struct () {
 static void test_deep_nested () {
     printf ("--- 4. deeply nested struct (Canvas -> Rect -> Vec2, Node*) ---\n");
 
-    Canvas *c = mm_alloc (sizeof (Canvas));
-    check (c != NULL, "mm_alloc(sizeof Canvas) non-NULL");
+    Canvas *c = malloc (sizeof (Canvas));
+    check (c != NULL, "malloc(sizeof Canvas) non-NULL");
 
     strncpy (c->name, "main_canvas", sizeof (c->name) - 1);
     c->bounds.id        = 1;
@@ -134,7 +134,7 @@ static void test_deep_nested () {
     c->head = NULL;
     Node *prev = NULL;
     for (int i = 0; i < 3; i++) {
-        Node *n = mm_alloc (sizeof (Node));
+        Node *n = malloc (sizeof (Node));
         check (n != NULL, "Node allocation succeeded");
         n->data = i * 10;
         n->next = NULL;
@@ -153,8 +153,8 @@ static void test_deep_nested () {
 
     /* free list first, then canvas */
     Node *cur = c->head;
-    while (cur) { Node *tmp = cur->next; mm_free (cur); cur = tmp; }
-    mm_free (c);
+    while (cur) { Node *tmp = cur->next; free (cur); cur = tmp; }
+    free (c);
     check (1, "all freed");
     next ();
 }
@@ -164,8 +164,8 @@ static void test_struct_array () {
     printf ("--- 5. array of structs (Vec2[32]) ---\n");
 
     const int N = 32;
-    Vec2 *arr = mm_alloc (N * sizeof (Vec2));
-    check (arr != NULL, "mm_alloc(32 * sizeof Vec2) non-NULL");
+    Vec2 *arr = malloc (N * sizeof (Vec2));
+    check (arr != NULL, "malloc(32 * sizeof Vec2) non-NULL");
 
     for (int i = 0; i < N; i++) { arr[i].x = i; arr[i].y = -i; arr[i].val = i * 0.1; }
 
@@ -174,8 +174,8 @@ static void test_struct_array () {
         ok &= (arr[i].x == i && arr[i].y == -i && arr[i].val > (i*0.1 - 0.001));
     check (ok, "all 32 Vec2 values correct");
 
-    mm_free (arr);
-    check (1, "mm_free completed");
+    free (arr);
+    check (1, "free completed");
     next ();
 }
 
@@ -187,7 +187,7 @@ static void test_independence () {
     char *ptrs[80];
 
     for (int i = 0; i < N; i++) {
-        ptrs[i] = mm_alloc (48);
+        ptrs[i] = malloc (48);
         check (ptrs[i] != NULL, "alloc non-NULL");
         memset (ptrs[i], i & 0xFF, 48);
     }
@@ -198,7 +198,7 @@ static void test_independence () {
             ok &= ((unsigned char)ptrs[i][j] == (unsigned char)(i & 0xFF));
     check (ok, "all 80 blocks retained distinct tag values");
 
-    for (int i = 0; i < N; i++) mm_free (ptrs[i]);
+    for (int i = 0; i < N; i++) free (ptrs[i]);
     check (1, "all 80 blocks freed");
     next ();
 }
@@ -207,22 +207,22 @@ static void test_independence () {
 static void test_coalescing () {
     printf ("--- 7. coalescing adjacent free blocks ---\n");
 
-    int *a = mm_alloc (80);
-    int *b = mm_alloc (80);
-    int *c = mm_alloc (80);
+    int *a = malloc (80);
+    int *b = malloc (80);
+    int *c = malloc (80);
     check (a && b && c, "three 80-byte blocks allocated");
 
-    mm_free (a); mm_free (b); mm_free (c);
+    free (a); free (b); free (c);
     check (1, "all three freed");
 
-    char *big = mm_alloc (200);
-    check (big != NULL, "mm_alloc(200) succeeded after coalescing");
+    char *big = malloc (200);
+    check (big != NULL, "malloc(200) succeeded after coalescing");
     if (big) {
         memset (big, 0xAB, 200);
         int ok = 1;
         for (int i = 0; i < 200; i++) ok &= ((unsigned char)big[i] == 0xAB);
         check (ok, "coalesced block fully writable");
-        mm_free (big);
+        free (big);
     }
     next ();
 }
@@ -234,21 +234,21 @@ static void test_slab_reclamation () {
     const int N = 20;
     Vec2 *ptrs[20];
     for (int i = 0; i < N; i++) {
-        ptrs[i] = mm_alloc (sizeof (Vec2));
+        ptrs[i] = malloc (sizeof (Vec2));
         check (ptrs[i] != NULL, "Vec2 alloc non-NULL");
         ptrs[i]->x = i; ptrs[i]->y = i * 2;
     }
 
-    for (int i = 0; i < N; i++) mm_free (ptrs[i]);
+    for (int i = 0; i < N; i++) free (ptrs[i]);
     check (1, "all freed — slab may have been reclaimed");
 
     /* allocator must still work after reclamation */
-    Rect *r = mm_alloc (sizeof (Rect));
+    Rect *r = malloc (sizeof (Rect));
     check (r != NULL, "alloc after reclamation succeeded");
     if (r) {
         r->id = 99; r->dims.x = 640; r->dims.y = 480;
         check (r->id == 99 && r->dims.x == 640, "post-reclamation block usable");
-        mm_free (r);
+        free (r);
     }
     next ();
 }
@@ -258,8 +258,8 @@ static void test_medium_tier () {
     size_t sz = (size_t)page_sz * 2;
     printf ("--- 9. medium tier allocation (%zu bytes) ---\n", sz);
 
-    char *buf = mm_alloc (sz);
-    check (buf != NULL, "mm_alloc(page_sz * 2) non-NULL");
+    char *buf = malloc (sz);
+    check (buf != NULL, "malloc(page_sz * 2) non-NULL");
     if (!buf) { next (); return; }
 
     memset (buf, 0x77, sz);
@@ -267,8 +267,8 @@ static void test_medium_tier () {
     for (size_t i = 0; i < sz; i += 512) ok &= ((unsigned char)buf[i] == 0x77);
     check (ok, "medium-tier buffer spot-check passed");
 
-    mm_free (buf);
-    check (1, "mm_free completed");
+    free (buf);
+    check (1, "free completed");
     next ();
 }
 
@@ -278,7 +278,7 @@ static void test_medium_tier_structs () {
     printf ("--- 10. medium tier struct array (~%zu bytes of Rect) ---\n", sz);
 
     int n = (int)(sz / sizeof (Rect));
-    Rect *arr = mm_alloc ((size_t)n * sizeof (Rect));
+    Rect *arr = malloc ((size_t)n * sizeof (Rect));
     check (arr != NULL, "large Rect array allocation non-NULL");
     if (!arr) { next (); return; }
 
@@ -293,8 +293,8 @@ static void test_medium_tier_structs () {
         ok &= (arr[i].id == i && arr[i].dims.x == i*2 && arr[i].dims.y == i*3);
     check (ok, "all Rect fields correct in medium-tier block");
 
-    mm_free (arr);
-    check (1, "mm_free completed");
+    free (arr);
+    check (1, "free completed");
     next ();
 }
 
@@ -303,8 +303,8 @@ static void test_large_tier () {
     size_t sz = (size_t)page_sz * 2048;  /* 8 MB on 4KB pages, well into large tier */
     printf ("--- 11. large tier allocation (%zu bytes) ---\n", sz);
 
-    char *buf = mm_alloc (sz);
-    check (buf != NULL, "mm_alloc(page_sz * 2048) non-NULL");
+    char *buf = malloc (sz);
+    check (buf != NULL, "malloc(page_sz * 2048) non-NULL");
     if (!buf) { next (); return; }
 
     buf[0]      = 0x11;
@@ -313,8 +313,8 @@ static void test_large_tier () {
     check (buf[0] == 0x11 && buf[sz/2] == 0x22 && buf[sz-1] == 0x33,
            "first, mid, and last byte of large-tier block writable");
 
-    mm_free (buf);
-    check (1, "mm_free completed");
+    free (buf);
+    check (1, "free completed");
     next ();
 }
 
@@ -324,8 +324,8 @@ static void test_large_tier_int () {
     size_t    sz = (size_t)N * sizeof (int);
     printf ("--- 12. large tier int[1M] (%zu bytes) ---\n", sz);
 
-    int *arr = mm_alloc (sz);
-    check (arr != NULL, "mm_alloc(4MB int array) non-NULL");
+    int *arr = malloc (sz);
+    check (arr != NULL, "malloc(4MB int array) non-NULL");
     if (!arr) { next (); return; }
 
     /* stride write/read — touching every 1024th element to keep runtime sane */
@@ -334,8 +334,8 @@ static void test_large_tier_int () {
     for (int i = 0; i < N; i += 1024) ok &= (arr[i] == i);
     check (ok, "strided read-back across 4MB int array correct");
 
-    mm_free (arr);
-    check (1, "mm_free completed");
+    free (arr);
+    check (1, "free completed");
     next ();
 }
 
@@ -344,19 +344,19 @@ static void test_large_tier_realloc () {
     size_t sz = (size_t)page_sz * 1500;
     printf ("--- 13. large tier realloc grow (%zu → %zu bytes) ---\n", sz, sz * 2);
 
-    char *buf = mm_alloc (sz);
+    char *buf = malloc (sz);
     check (buf != NULL, "initial large-tier alloc non-NULL");
     if (!buf) { next (); return; }
 
     memset (buf, 0xAA, sz);
 
-    char *grown = mm_realloc (buf, sz * 2);
-    check (grown != NULL, "mm_realloc grow non-NULL");
+    char *grown = realloc (buf, sz * 2);
+    check (grown != NULL, "realloc grow non-NULL");
     if (grown) {
         int ok = 1;
         for (size_t i = 0; i < sz; i += 512) ok &= ((unsigned char)grown[i] == 0xAA);
         check (ok, "original data preserved after large-tier grow");
-        mm_free (grown);
+        free (grown);
     }
     next ();
 }
@@ -365,51 +365,51 @@ static void test_large_tier_realloc () {
 static void test_realloc () {
     printf ("--- 14. realloc: NULL / grow / shrink ---\n");
 
-    /* NULL → behaves like mm_alloc */
-    Rect *r = mm_realloc (NULL, sizeof (Rect));
-    check (r != NULL, "mm_realloc(NULL, sizeof Rect) non-NULL");
-    if (r) { r->id = 42; check (r->id == 42, "returned block writable"); mm_free (r); }
+    /* NULL → behaves like malloc */
+    Rect *r = realloc (NULL, sizeof (Rect));
+    check (r != NULL, "realloc(NULL, sizeof Rect) non-NULL");
+    if (r) { r->id = 42; check (r->id == 42, "returned block writable"); free (r); }
 
     /* grow: original bytes preserved */
-    char *buf = mm_alloc (64);
+    char *buf = malloc (64);
     check (buf != NULL, "pre-grow alloc non-NULL");
     if (buf) {
         memset (buf, 0x55, 64);
-        char *grown = mm_realloc (buf, 512);
-        check (grown != NULL, "mm_realloc grow non-NULL");
+        char *grown = realloc (buf, 512);
+        check (grown != NULL, "realloc grow non-NULL");
         if (grown) {
             int ok = 1;
             for (int i = 0; i < 64; i++) ok &= ((unsigned char)grown[i] == 0x55);
             check (ok, "first 64 bytes preserved after grow");
 
             /* shrink: min(old, new) bytes preserved */
-            char *shrunk = mm_realloc (grown, 32);
-            check (shrunk != NULL, "mm_realloc shrink non-NULL");
+            char *shrunk = realloc (grown, 32);
+            check (shrunk != NULL, "realloc shrink non-NULL");
             if (shrunk) {
                 int ok2 = 1;
                 for (int i = 0; i < 32; i++) ok2 &= ((unsigned char)shrunk[i] == 0x55);
                 check (ok2, "first 32 bytes preserved after shrink");
-                mm_free (shrunk);
+                free (shrunk);
             }
         }
     }
     next ();
 }
 
-/* 15. mm_free(NULL) is a no-op */
+/* 15. free(NULL) is a no-op */
 static void test_free_null () {
-    printf ("--- 15. mm_free(NULL) is a no-op ---\n");
-    mm_free (NULL);
+    printf ("--- 15. free(NULL) is a no-op ---\n");
+    free (NULL);
     check (1, "returned without crash");
     next ();
 }
 
 /* 16. error: double free → SIGABRT */
 static void do_double_free () {
-    int *p = mm_alloc (sizeof (int));
+    int *p = malloc (sizeof (int));
     *p = 1;
-    mm_free (p);
-    mm_free (p);
+    free (p);
+    free (p);
 }
 
 static void test_error_double_free () {
@@ -421,7 +421,7 @@ static void test_error_double_free () {
 /* 17. error: free of stack pointer → SIGABRT */
 static void do_free_stack () {
     int x = 42;
-    mm_free (&x);
+    free (&x);
 }
 
 static void test_error_free_stack () {
@@ -432,8 +432,8 @@ static void test_error_free_stack () {
 
 /* 18. error: free of interior pointer (not block start) → SIGABRT */
 static void do_free_interior () {
-    char *p = mm_alloc (64);
-    mm_free (p + 16);   /* offset into payload — magic check should fail */
+    char *p = malloc (64);
+    free (p + 16);   /* offset into payload — magic check should fail */
 }
 
 static void test_error_free_interior () {
