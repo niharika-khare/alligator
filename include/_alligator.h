@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
-
+#include <stdalign.h>  
 
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
 #define max(a,b)  (((a) > (b)) ? (a) : (b))
@@ -25,7 +25,7 @@ static inline size_t _get_page_size() {
 #define FREE_H_SIZE                 sizeof (_Header)
 #define ALOC_H_SIZE                 sizeof (_alloc_head)
 #define MAGIC_NUMBER                0xA2F5
-#define ALIGNMENT                   sizeof (long int)
+#define ALIGNMENT                   alignof (max_align_t)
 
 
 /** Different slab size to avoid over allocation */
