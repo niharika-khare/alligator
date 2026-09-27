@@ -66,4 +66,16 @@ typedef union header {
     _align _al;
 } _Header;
 
+
+/** Slab Registry internals */
+#define MAX_SLAB_COUNT              32 * 1024
+
+struct slab_registry_object {
+    void * slab_addr;
+    size_t slab_size;
+} 
+slab_registry[MAX_SLAB_COUNT];
+
+static int slab_count = 0;
+
 #endif /* _ALLIGATOR_INTERNALS_H_ */

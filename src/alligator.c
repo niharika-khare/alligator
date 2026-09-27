@@ -7,15 +7,47 @@ static _Header * fl_sml = NULL;
 static _Header * fl_mid = NULL;
 static _Header * fl_lrg = NULL;
 
+static int _get_avail_slab_id () {
+
+    for (int i=0; i<slab_count; i++) {
+        if (slab_registry[i].slab_addr != NULL) {
+            return i;
+        }
+    }
+    if (slab_count<MAX_SLAB_COUNT) {
+        slab_count++;
+        return slab_count-1;
+    }
+    return -1;
+}
+
+static int _get_inuse_slab_id (void * mem) {
+
+    for (int i=0; i<slab_count; i++) {
+        
+        if (slab_registry[i].slab_addr == NULL) continue;
+
+        if ((char *) slab_registry[i].slab_addr + ALOC_H_SIZE <= (char *) mem &&
+            (char *) slab_registry[i].slab_addr + slab_registry[i].slab_size > (char *) mem) {
+                return i;
+        }
+    }
+    return -1;
+}
 
 static _Header * _mmap (size_t size) {
 
     size_t tt_size = size + FREE_H_SIZE;
 
+    int slab_id = _get_avail_slab_id();
+    if (slab_id == -1) return NULL;
+
     _Header * slab = mmap (NULL, tt_size, PROT_READ | PROT_WRITE,
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-
     if (slab == MAP_FAILED) return NULL;
+
+    slab_registry[slab_id].slab_addr = (void *) slab;
+    slab_registry[slab_id].slab_size = tt_size;
     
     slab->head.ah.is_free       = 1;
     slab->head.ah.is_last       = 1;
@@ -26,31 +58,37 @@ static _Header * _mmap (size_t size) {
     slab->head.next             = NULL;
 
     return slab;
-
 }
 
 /**
- * Check Header validity via the following methods (in sequence):
- *  1. Range check of the blk address (TODO)
+ * Check address validity via the following methods (in sequence):
+ *  1. Range check of the received address against slab registry.
  *  2. Alignment check (TODO)
- *  3. Magic number check 
- *  4. Check if the the block is not already free.
+ *  3. Magic number check for the obtained _Header.
+ *  4. Double-free check.
  */
-static int _is_valid_alloc_blk (_Header * blk) {
+static _Header * _is_valid_alloc_mem (void * mem) {
 
-    if (!blk) return -1;
+    if (!mem) return NULL;
+
+    int slab_id = _get_inuse_slab_id (mem);
+    if (slab_id == -1) return NULL;
+
+    _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
+
+    if (!blk) return NULL;
 
     if (blk->head.ah.magic_id != MAGIC_NUMBER) {
-        const char * err_msg = "err: memory was not allocated!\n";
+        const char * err_msg = "err: corrupted header, memory could be in use by another block!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
-        return -1;
+        return NULL;
     }
     if (blk->head.ah.is_free) {
         const char * err_msg = "err: memory is free!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
-        return -1;
+        return NULL;
     }
-    return 0;
+    return blk;
 }
 
 
@@ -127,7 +165,6 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
 
         if (st->head.ah.size > tt_size) {
 
-            
             st->head.ah.size = st->head.ah.size - tt_size ;
             _Header * f_blk = ((_Header *) ((char *) st + FREE_H_SIZE + st->head.ah.size));
 
@@ -184,7 +221,7 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
  * 6. If a free blk is found (first - fit ) then split the blk, the rear end of the splitted block 
  *    is return to the user (with striped off pointers for prev and next and the flags) and the 
  *    front end's size and pointers are adjusted and it remains on the free list.
- * 7. mm_alloc(0) would return a pointer to address whose ptr->head.ah.size = 0
+ * 7. malloc(0) would return a pointer to address whose ptr->head.ah.size = 0
  */
 void * malloc (size_t size) {
 
@@ -256,16 +293,13 @@ void * malloc (size_t size) {
  * 7. If prev block is free -> coalesc and update size, adjust pointers
  * 8. If the final block is equal to the slab size, free it.
  * 9. If a new free blk, put on the free_list, adjust pointers
- * 10. mm_free(NULL) is valid and would do nothing
+ * 10. free(NULL) is valid and would do nothing
  */
 void free ( void * restrict mem ) {
-
     if (!mem) return;
 
-    _Header * restrict blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
-    
-    if (_is_valid_alloc_blk(blk) == -1) return;
-    
+    _Header * restrict blk = _is_valid_alloc_mem(mem);
+    if (!blk) return;
 
     size_t blk_tt_size = blk->head.ah.size + ALOC_H_SIZE;
 
@@ -273,29 +307,28 @@ void free ( void * restrict mem ) {
         blk_tt_size == SLAB_SIZE_MID + FREE_H_SIZE ||
         blk_tt_size >= SLAB_SIZE_LRG + FREE_H_SIZE) {
 
-        munmap (blk, blk_tt_size);
-        return;
+            int slab_id = _get_inuse_slab_id (mem);
+            slab_registry[slab_id].slab_addr = NULL;
+            slab_registry[slab_id].slab_size = 0;
+
+            munmap (blk, blk_tt_size);
+            return;
     }
 
     _Header * fl = NULL;
     size_t slab_size = 0;
 
     if (blk_tt_size < SLAB_SIZE_SML + FREE_H_SIZE) {
-
         slab_size = SLAB_SIZE_SML;
-        fl = fl_sml ? fl_sml 
-            : (fl_sml = blk->head.next = blk->head.prev = blk) ;
+        fl = fl_sml ? : (fl_sml = blk->head.next = blk->head.prev = blk) ;
     } 
     else if (blk_tt_size < SLAB_SIZE_MID + FREE_H_SIZE) {
-
         slab_size = SLAB_SIZE_MID;
-        fl = fl_mid ? fl_mid
-            : (fl_mid = blk->head.next = blk->head.prev = blk) ;
+        fl = fl_mid ? : (fl_mid = blk->head.next = blk->head.prev = blk) ;
     }
     else {
         slab_size = SLAB_SIZE_LRG;
-        fl = fl_lrg ? fl_lrg
-            : (fl_lrg = blk->head.next = blk->head.prev = blk) ;
+        fl = fl_lrg ? : (fl_lrg = blk->head.next = blk->head.prev = blk) ;
     }
 
     int is_on_fl = 0;
@@ -364,6 +397,11 @@ void free ( void * restrict mem ) {
 	        blk->head.next->head.prev = blk->head.prev;
 	        blk->head.prev->head.next = blk->head.next;
 	    }
+
+        int slab_id = _get_inuse_slab_id ((char *) blk + ALOC_H_SIZE);
+        slab_registry[slab_id].slab_addr = NULL;
+        slab_registry[slab_id].slab_size = 0;
+
         munmap (blk, blk_tt_size);
         return;
     }
@@ -386,8 +424,8 @@ void * realloc(void * mem, size_t size) {
         return NULL;
     }
 
-    _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE) ;
-    if (_is_valid_alloc_blk(blk) == -1) return NULL;
+    _Header * blk = _is_valid_alloc_mem(mem) ;
+    if (!blk) return NULL;
 
     size_t blk_size = blk->head.ah.size;
     if (blk_size == size) return mem;
