@@ -173,11 +173,10 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
             st->head.ah.size = st->head.ah.size - tt_size ;
             _Header * f_blk = ((_Header *) ((char *) st + FREE_H_SIZE + st->head.ah.size));
 
-            if (st->head.ah.is_last) {
-                st->head.ah.is_last = 0;
-                f_blk->head.ah.is_last = 1;
-            } 
-            else {
+            f_blk->head.ah.is_last = st->head.ah.is_last;
+            st->head.ah.is_last = 0;
+
+            if (!st->head.ah.is_last) {
                 _Header * n_blk = ((_Header *) ((char *) f_blk + tt_size));
                 n_blk->head.ah.pblk_size = tt_size;
             }
@@ -378,7 +377,7 @@ void free ( void * restrict mem ) {
             
             if (!p_blk->head.ah.is_last) {
                 _Header * n_blk = (_Header *) ((char *) blk + blk_tt_size);
-                n_blk->head.ah.pblk_size = p_blk->head.ah.size;
+                n_blk->head.ah.pblk_size = p_blk->head.ah.size + FREE_H_SIZE;
             }
 
             /* If the blk was already added to the free list then that link needs to be removed 
