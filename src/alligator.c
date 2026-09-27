@@ -109,19 +109,24 @@ static _Header * _fl_add (_Header * fl, _Header * chunk) {
     }
 
     if (!fl) {
-	chunk->head.next = chunk->head.prev = chunk;
-	fl = chunk;
-    }
-    else {
-	chunk->head.next = fl->head.next;
-	fl->head.next->head.prev = chunk;
-	fl->head.next = chunk;
-	chunk->head.prev = fl;
-    }
+        chunk->head.next = chunk->head.prev = chunk;
+        fl = chunk;
 
-    if (fl->head.ah.size <= SLAB_SIZE_SML) fl_sml = fl; 
-    else if (fl->head.ah.size <= SLAB_SIZE_MID) fl_mid = fl; 
-    else fl_lrg = fl; 
+        if (fl->head.ah.size <= SLAB_SIZE_SML) fl_sml = fl; 
+        else if (fl->head.ah.size <= SLAB_SIZE_MID) fl_mid = fl; 
+        else fl_lrg = fl; 
+
+        return fl;
+    }
+    
+    chunk->head.next = fl->head.next;
+    fl->head.next->head.prev = chunk;
+    fl->head.next = chunk;
+    chunk->head.prev = fl;
+
+    if (fl == fl_sml) fl_sml = fl = chunk; 
+    else if (fl == fl_mid) fl_mid = fl = chunk; 
+    else if (fl == fl_lrg) fl_lrg = fl = chunk; 
 
     return fl;
 }
