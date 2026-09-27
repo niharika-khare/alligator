@@ -239,9 +239,7 @@ void * malloc (size_t size) {
 
     if (tt_size > SLAB_SIZE_LRG + FREE_H_SIZE) {
         
-        f_blk = _mmap (size);
-        if (f_blk) f_blk->head.ah.is_free = 0;
-
+        if (f_blk = _mmap (size)) f_blk->head.ah.is_free = 0;
         return f_blk ? (void *) ((char *) f_blk + ALOC_H_SIZE) : NULL;
     }
 
@@ -249,7 +247,7 @@ void * malloc (size_t size) {
 
         slab_size = SLAB_SIZE_SML;
         if (!fl_sml ) {
-            fl_sml = _mmap (slab_size);
+            if (!(fl_sml = _mmap (slab_size))) return NULL;
             fl_sml->head.next = fl_sml->head.prev = fl_sml;
         }  
         fl = fl_sml;
@@ -258,7 +256,7 @@ void * malloc (size_t size) {
 
         slab_size = SLAB_SIZE_MID;
         if (!fl_mid) {
-            fl_mid = _mmap (slab_size);
+            if (!(fl_mid = _mmap (slab_size))) return NULL;
             fl_mid->head.next = fl_mid->head.prev = fl_mid;
         }  
         fl = fl_mid;
@@ -267,7 +265,7 @@ void * malloc (size_t size) {
 
         slab_size = SLAB_SIZE_LRG;
         if (!fl_lrg) {
-            fl_lrg = _mmap (slab_size);
+            if (!(fl_lrg = _mmap (slab_size))) return NULL;
             fl_lrg->head.next = fl_lrg->head.prev = fl_lrg;
         } 
         fl = fl_lrg;
