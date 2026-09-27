@@ -102,10 +102,6 @@ static _Header * _fl_add (_Header * fl, _Header * chunk) {
         size_t chunk_tt_size = chunk->head.ah.size + ALOC_H_SIZE;
         chunk->head.ah.size = chunk_tt_size - FREE_H_SIZE;
 
-        if (!chunk->head.ah.is_last) {
-            _Header * n_blk = (_Header *) ((char *) chunk + chunk_tt_size);
-            n_blk->head.ah.pblk_size = chunk->head.ah.size;
-        }
     }
 
     if (!fl) {
