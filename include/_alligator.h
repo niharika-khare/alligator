@@ -25,7 +25,11 @@ static inline size_t _get_page_size() {
 #define FREE_H_SIZE                 sizeof (_Header)
 #define ALOC_H_SIZE                 sizeof (_alloc_head)
 #define MAGIC_NUMBER                0xA2F5
+
+
+/** Alignment specification */
 #define ALIGNMENT                   alignof (max_align_t)
+typedef max_align_t _align;
 
 
 /** Different slab size to avoid over allocation */
@@ -33,8 +37,6 @@ static inline size_t _get_page_size() {
 #define SLAB_SIZE_MID               (size_t) (1024 * PAGE_SIZE - FREE_H_SIZE)
 #define SLAB_SIZE_LRG               (size_t) (1024 * 1024 * PAGE_SIZE - FREE_H_SIZE)
 
-
-typedef max_align_t _align;
 
 /**
  * The use of bitfields take away the scope for multi-threding 
