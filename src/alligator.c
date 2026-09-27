@@ -406,7 +406,7 @@ void free ( void * restrict mem ) {
 	        blk->head.prev->head.next = blk->head.next;
 	    }
 
-        int slab_id = _get_inuse_slab_id ((char *) blk + ALOC_H_SIZE);
+        int slab_id = _get_inuse_slab_id ((char *) blk + FREE_H_SIZE);
         slab_registry[slab_id].slab_addr = NULL;
         slab_registry[slab_id].slab_size = 0;
 
