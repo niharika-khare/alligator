@@ -381,11 +381,16 @@ void free ( void * restrict mem ) {
 void * realloc(void * mem, size_t size) {
 
     if (!mem) return malloc(size);
+    if (!size) {
+        free (mem);
+        return NULL;
+    }
 
     _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE) ;
     if (_is_valid_alloc_blk(blk) == -1) return NULL;
 
     size_t blk_size = blk->head.ah.size;
+    if (blk_size == size) return mem;
     
     void * new_mem = malloc(size);
     if (!new_mem) return NULL;
