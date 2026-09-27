@@ -273,8 +273,8 @@ void free ( void * restrict mem ) {
         blk_tt_size == SLAB_SIZE_MID + FREE_H_SIZE ||
         blk_tt_size >= SLAB_SIZE_LRG + FREE_H_SIZE) {
 
-            munmap (blk, blk_tt_size);
-            return;
+        munmap (blk, blk_tt_size);
+        return;
     }
 
     _Header * fl = NULL;
@@ -310,7 +310,7 @@ void free ( void * restrict mem ) {
             blk->head.ah.is_last        = n_blk->head.ah.is_last;
             blk->head.ah.size           = blk_tt_size + n_blk->head.ah.size;
             blk->head.next              = (n_blk->head.next == n_blk) ? blk : n_blk->head.next;
-            blk->head.prev              = (n_blk->head.prev == n_blk) ? blk :n_blk->head.prev;
+            blk->head.prev              = (n_blk->head.prev == n_blk) ? blk : n_blk->head.prev;
 
             blk->head.next->head.prev = blk;
             blk->head.prev->head.next = blk;
@@ -330,7 +330,7 @@ void free ( void * restrict mem ) {
 
         _Header * p_blk = (_Header *) ((char *) blk - (blk->head.ah.pblk_size + FREE_H_SIZE));
 
-        if ( (p_blk->head.ah.magic_id == MAGIC_NUMBER) && p_blk->head.ah.is_free ) {
+        if ((p_blk->head.ah.magic_id == MAGIC_NUMBER) && p_blk->head.ah.is_free) {
         
             p_blk->head.ah.size         = p_blk->head.ah.size + blk_tt_size;
             p_blk->head.ah.is_last      = blk->head.ah.is_last;
@@ -359,11 +359,11 @@ void free ( void * restrict mem ) {
 
     /* If blk is coalesced into a slab, re-link it's pointers and free it */
     if (blk->head.ah.size == slab_size) {
-	if (is_on_fl) {
-	    _fl_dereference(blk_tt_size, blk);
-	    blk->head.next->head.prev = blk->head.prev;
-	    blk->head.prev->head.next = blk->head.next;
-	}
+	    if (is_on_fl) {
+	        _fl_dereference(blk_tt_size, blk);
+	        blk->head.next->head.prev = blk->head.prev;
+	        blk->head.prev->head.next = blk->head.next;
+	    }
         munmap (blk, blk_tt_size);
         return;
     }
