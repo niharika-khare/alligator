@@ -176,7 +176,7 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
             f_blk->head.ah.is_last = st->head.ah.is_last;
             st->head.ah.is_last = 0;
 
-            if (!st->head.ah.is_last) {
+            if (!f_blk->head.ah.is_last) {
                 _Header * n_blk = ((_Header *) ((char *) f_blk + tt_size));
                 n_blk->head.ah.pblk_size = tt_size;
             }
