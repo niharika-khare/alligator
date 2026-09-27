@@ -174,13 +174,13 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
             } 
             else {
                 _Header * n_blk = ((_Header *) ((char *) f_blk + tt_size));
-                n_blk->head.ah.pblk_size = tt_size - ALOC_H_SIZE;
+                n_blk->head.ah.pblk_size = tt_size;
             }
 
             f_blk->head.ah.is_free = 0;
             f_blk->head.ah.magic_id = MAGIC_NUMBER;
             f_blk->head.ah.size = tt_size - ALOC_H_SIZE;
-            f_blk->head.ah.pblk_size = st->head.ah.size;
+            f_blk->head.ah.pblk_size = st->head.ah.size + FREE_H_SIZE;
                 
             return f_blk;
         }
@@ -351,6 +351,11 @@ void free ( void * restrict mem ) {
             is_on_fl = 1;
             blk_tt_size = blk->head.ah.size + FREE_H_SIZE;
 
+            if (!blk->head.ah.is_last) {
+                _Header * nn_blk = (_Header *) ((char *) blk + blk_tt_size);
+                nn_blk->head.ah.pblk_size = blk_tt_size;
+            }
+
             if (fl_sml == n_blk) fl_sml = blk; 
             else if (fl_mid == n_blk) fl_mid = blk; 
             else if (fl_lrg == n_blk) fl_lrg = blk; 
@@ -361,7 +366,7 @@ void free ( void * restrict mem ) {
     /* Coalesc with prev blk if it exists and is free */
     if (blk->head.ah.pblk_size != 0) {
 
-        _Header * p_blk = (_Header *) ((char *) blk - (blk->head.ah.pblk_size + FREE_H_SIZE));
+        _Header * p_blk = (_Header *) ((char *) blk - blk->head.ah.pblk_size);
 
         if ((p_blk->head.ah.magic_id == MAGIC_NUMBER) && p_blk->head.ah.is_free) {
         
