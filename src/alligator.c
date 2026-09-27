@@ -10,7 +10,7 @@ static _Header * fl_lrg = NULL;
 static int _get_avail_slab_id () {
 
     for (int i=0; i<slab_count; i++) {
-        if (slab_registry[i].slab_addr != NULL) {
+        if (slab_registry[i].slab_addr == NULL) {
             return i;
         }
     }
