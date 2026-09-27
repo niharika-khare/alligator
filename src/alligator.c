@@ -72,25 +72,29 @@ static _Header * _is_valid_alloc_mem (void * mem) {
     if (!mem) return NULL;
 
     int slab_id = _get_inuse_slab_id (mem);
-    if (slab_id == -1) return NULL;
+    if (slab_id == -1) {
+        const char * err_msg = "err: invalid address, memory not allocated by alligator!\n";
+        write (STDERR_FILENO, err_msg, strlen (err_msg));
+        abort();
+    }
 
     _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
 
     if (!blk) return NULL;
 
     if (blk->head.ah.magic_id != MAGIC_NUMBER) {
-        const char * err_msg = "err: corrupted header, memory could be in use by another block!\n";
+        const char * err_msg = 
+                        "err: corrupted header, memory could be in use by another block!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
-        return NULL;
+        abort();
     }
     if (blk->head.ah.is_free) {
         const char * err_msg = "err: memory is free!\n";
         write (STDERR_FILENO, err_msg, strlen (err_msg));
-        return NULL;
+        abort();
     }
     return blk;
 }
-
 
 static _Header * _fl_add (_Header * fl, _Header * chunk) {
 
