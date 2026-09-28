@@ -239,7 +239,7 @@ void * malloc (size_t size) {
 
     if (tt_size > SLAB_SIZE_LRG + FREE_H_SIZE) {
         
-        if (f_blk = _mmap (size)) f_blk->head.ah.is_free = 0;
+        if ((f_blk = _mmap (size))) f_blk->head.ah.is_free = 0;
         return f_blk ? (void *) ((char *) f_blk + ALOC_H_SIZE) : NULL;
     }
 
@@ -399,7 +399,7 @@ void free ( void * restrict mem ) {
     }
 
     /* If blk is coalesced into a slab, re-link it's pointers and free it */
-    if (blk->head.ah.size == slab_size) {
+    if (blk->head.ah.size == slab_size && blk == blk->head.next && blk == blk->head.prev) {
 	    if (is_on_fl) {
 	        _fl_dereference(blk_tt_size, blk);
 	        blk->head.next->head.prev = blk->head.prev;
