@@ -7,6 +7,10 @@ static _Header * fl_sml = NULL;
 static _Header * fl_mid = NULL;
 static _Header * fl_lrg = NULL;
 
+static int fl_sml_empty = 0;
+static int fl_mid_empty = 0;
+static int fl_lrg_empty = 0;
+
 static int _get_avail_slab_id () {
 
     for (int i=1; i<slab_count; i++) {
@@ -55,6 +59,7 @@ static _Header * _mmap (size_t size) {
     slab->head.ah.magic_id      = MAGIC_NUMBER;
     slab->head.ah.size          = size;
     slab->head.ah.pblk_size     = 0;
+    slab->head.ah.is_reserved   = 0;
     slab->head.prev             = NULL;
     slab->head.next             = NULL;
 
@@ -160,6 +165,14 @@ static void _fl_dereference (size_t blk_tt_size, _Header * blk) {
     }
 }
 
+static inline void _flip_blk_reservation(_Header * fl, _Header * blk) {
+    if (blk->head.ah.is_reserved) {
+        blk->head.ah.is_reserved = 0;
+        if (fl == fl_sml) fl_sml_empty = 0; 
+        else if (fl == fl_mid) fl_mid_empty = 0;
+        else if (fl == fl_lrg) fl_lrg_empty = 0;
+    }
+}
 
 static _Header * _find_f_blk (_Header * fl, size_t size) {
     
@@ -186,7 +199,10 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
             f_blk->head.ah.magic_id = MAGIC_NUMBER;
             f_blk->head.ah.size = tt_size - ALOC_H_SIZE;
             f_blk->head.ah.pblk_size = st->head.ah.size + FREE_H_SIZE;
-                
+            
+            _flip_blk_reservation(fl, st);
+            f_blk->head.ah.is_reserved = 0;
+            
             return f_blk;
         }
         else if (st->head.ah.size + FREE_H_SIZE >= tt_size) {
@@ -199,6 +215,7 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
             f_blk->head.ah.is_free = 0;
             f_blk->head.ah.is_last = st->head.ah.is_last;
             f_blk->head.ah.size = f_blk->head.ah.size + FREE_H_SIZE - ALOC_H_SIZE;
+            _flip_blk_reservation(fl, st);
 
             size_t blk_tt_size = f_blk->head.ah.size + ALOC_H_SIZE;
             _fl_dereference (blk_tt_size, f_blk);
@@ -284,6 +301,13 @@ void * malloc (size_t size) {
     return f_blk ? ((void *) ((char *) f_blk + ALOC_H_SIZE)) : NULL;
 }
 
+static inline int _is_first_empty_slab (size_t slab_size, _Header * blk) {
+
+    if (slab_size == SLAB_SIZE_SML && !fl_sml_empty) return fl_sml_empty = 1;
+    else if (slab_size == SLAB_SIZE_MID && !fl_mid_empty) return fl_mid_empty = 1;
+    else if (slab_size == SLAB_SIZE_LRG && !fl_lrg_empty) return fl_lrg_empty = 1;
+    else return 0;
+}
 
 /**
  * 1. Get the pointer of the header from the blk.
@@ -399,7 +423,13 @@ void free ( void * restrict mem ) {
     }
 
     /* If blk is coalesced into a slab, re-link it's pointers and free it */
-    if (blk->head.ah.size == slab_size && blk == blk->head.next && blk == blk->head.prev) {
+    if (blk->head.ah.size == slab_size) {
+        
+        if (_is_first_empty_slab(slab_size, blk)) {
+            blk->head.ah.is_reserved = 1;
+            goto fl_update;
+        }
+        
 	    if (is_on_fl) {
 	        _fl_dereference(blk_tt_size, blk);
 	        blk->head.next->head.prev = blk->head.prev;
@@ -414,6 +444,7 @@ void free ( void * restrict mem ) {
         return;
     }
 
+fl_update:
     /* Add to free list if the block is not coalesced and hence not on free list */ 
     if (!is_on_fl) {
         fl = _fl_add (fl, blk);
