@@ -13,7 +13,7 @@ static int fl_lrg_empty = 0;
 
 static int _get_avail_slab_id () {
 
-    for (int i=1; i<slab_count; i++) {
+    for (int i=0; i<slab_count; i++) {
         if (slab_registry[i].slab_addr == NULL) {
             return i;
         }
@@ -27,7 +27,7 @@ static int _get_avail_slab_id () {
 
 static int _get_inuse_slab_id (void * mem) {
 
-    for (int i=1; i<slab_count; i++) {
+    for (int i=0; i<slab_count; i++) {
         
         if (slab_registry[i].slab_addr == NULL) continue;
 
@@ -197,6 +197,7 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
 
             f_blk->head.ah.is_free = 0;
             f_blk->head.ah.magic_id = MAGIC_NUMBER;
+            f_blk->head.ah.slab_id = st->head.ah.slab_id;
             f_blk->head.ah.size = tt_size - ALOC_H_SIZE;
             f_blk->head.ah.pblk_size = st->head.ah.size + FREE_H_SIZE;
             
