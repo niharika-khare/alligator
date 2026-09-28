@@ -35,7 +35,7 @@ typedef max_align_t _align;
 /** Different slab size to avoid over allocation */
 #define SLAB_SIZE_SML               (size_t) (PAGE_SIZE - FREE_H_SIZE)
 #define SLAB_SIZE_MID               (size_t) (1024 * PAGE_SIZE - FREE_H_SIZE)
-#define SLAB_SIZE_LRG               (size_t) (1024 * 1024 * PAGE_SIZE - FREE_H_SIZE)
+#define SLAB_SIZE_LRG               (size_t) (16 * 1024 * PAGE_SIZE - FREE_H_SIZE)
 
 
 /**
