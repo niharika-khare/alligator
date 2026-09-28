@@ -9,7 +9,7 @@ static _Header * fl_lrg = NULL;
 
 static int _get_avail_slab_id () {
 
-    for (int i=0; i<slab_count; i++) {
+    for (int i=1; i<slab_count; i++) {
         if (slab_registry[i].slab_addr == NULL) {
             return i;
         }
@@ -23,7 +23,7 @@ static int _get_avail_slab_id () {
 
 static int _get_inuse_slab_id (void * mem) {
 
-    for (int i=0; i<slab_count; i++) {
+    for (int i=1; i<slab_count; i++) {
         
         if (slab_registry[i].slab_addr == NULL) continue;
 
@@ -51,6 +51,7 @@ static _Header * _mmap (size_t size) {
     
     slab->head.ah.is_free       = 1;
     slab->head.ah.is_last       = 1;
+    slab->head.ah.slab_id       = slab_id;
     slab->head.ah.magic_id      = MAGIC_NUMBER;
     slab->head.ah.size          = size;
     slab->head.ah.pblk_size     = 0;
@@ -309,7 +310,7 @@ void free ( void * restrict mem ) {
         blk_tt_size == SLAB_SIZE_MID + FREE_H_SIZE ||
         blk_tt_size >= SLAB_SIZE_LRG + FREE_H_SIZE) {
 
-            int slab_id = _get_inuse_slab_id (mem);
+            int slab_id = blk->head.ah.slab_id;
             slab_registry[slab_id].slab_addr = NULL;
             slab_registry[slab_id].slab_size = 0;
 
@@ -405,7 +406,7 @@ void free ( void * restrict mem ) {
 	        blk->head.prev->head.next = blk->head.next;
 	    }
 
-        int slab_id = _get_inuse_slab_id ((char *) blk + FREE_H_SIZE);
+        int slab_id = blk->head.ah.slab_id;
         slab_registry[slab_id].slab_addr = NULL;
         slab_registry[slab_id].slab_size = 0;
 

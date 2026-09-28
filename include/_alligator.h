@@ -50,7 +50,7 @@ typedef struct _aloc_h {
             size_t is_free      : 1;
             size_t is_last      : 1;
             size_t size         : 48;
-            size_t              : 0;
+            int slab_id         : 14;
             size_t pblk_size    : 48;
             size_t magic_id     : 16;
             size_t              : 0;
@@ -70,7 +70,7 @@ typedef union header {
 
 
 /** Slab Registry internals */
-#define MAX_SLAB_COUNT              32 * 1024
+#define MAX_SLAB_COUNT              16 * 1024
 
 struct slab_registry_object {
     void * slab_addr;
@@ -78,6 +78,6 @@ struct slab_registry_object {
 } 
 slab_registry[MAX_SLAB_COUNT];
 
-static int slab_count = 0;
+static int slab_count = 1;
 
 #endif /* _ALLIGATOR_INTERNALS_H_ */
