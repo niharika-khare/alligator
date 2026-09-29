@@ -176,8 +176,15 @@ The header packs cleanly into two 64-bit words: `is_free(1) + is_last(1) + size(
 
 ## Benchmarking
 
-Alligator was benchmarked via mimalloc-bench suite. 
-Details TBA.
+Alligator was benchmarked via mimalloc-bench suite and following results were obtained:
+
+| | aarch64 | x86-64 |
+|---|---|---|
+| Speed (% of glibc) | **82%** | **85%** |
+| Memory (peak RSS vs glibc) | **2% more** | **2% more** |
+
+
+Read [Benchmark.md](https://github.com/niharika-khare/alligator/blob/mainline/Benchmark.md) for full report.
 
 ---
 
