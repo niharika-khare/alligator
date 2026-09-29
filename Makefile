@@ -20,10 +20,11 @@ all: build
 
 help:
 	@echo "Makefile targets: "
-	@echo "  all.  	- 	Build and run all the changes (default)"
-	@echo "  build 	- 	Build everything but do not run the application"
-	@echo "  clean 	- 	clean all build targets and executables"
-	@echo "  help  	- 	Display this help menu"
+	@echo "  all  		- 	Build and run all the changes (default)"
+	@echo "  build		- 	Build everything but do not run the application"
+	@echo "  lib  		-	Build the shared library liballigator.so (./bin folder), for benchmarking"
+	@echo "  clean		- 	clean all build targets and executables"
+	@echo "  help 		- 	Display this help menu"
 
 clean:
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
@@ -43,3 +44,13 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c  $(DEPS)
 alligator: $(OBJ)
 	@mkdir -p $(dir $@)
 	$(CC) $^ -o $(BIN_DIR)/$@ $(CFLAGS)
+
+
+# Shared Library targets
+BENCH_CFLAGS := $(INC_FLAG) -O3 -fPIC -shared -ffast-math -falign-functions=64
+
+LIB_SRC := $(filter-out $(SRC_DIR)/main.c, $(SRC))
+
+lib: $(BIN_DIR)
+	@mkdir -p bin
+	$(CC) $(BENCH_CFLAGS) $(LIB_SRC) -o ./bin/liballigator.so
