@@ -69,13 +69,13 @@ static _Header * _mmap (size_t size) {
 /**
  * Check address validity via the following methods (in sequence):
  *  1. Range check of the received address against slab registry.
- *  2. Alignment check (TODO)
+ *  2. Alignment check: lower 4 bits of the address should be unset.
  *  3. Magic number check for the obtained _Header.
  *  4. Double-free check.
  */
 static _Header * _is_valid_alloc_mem (void * mem) {
 
-    if (!mem) return NULL;
+    if (!mem) abort();
 
     int slab_id = _get_inuse_slab_id (mem);
     if (slab_id == -1) {
@@ -83,10 +83,14 @@ static _Header * _is_valid_alloc_mem (void * mem) {
         write (STDERR_FILENO, err_msg, strlen (err_msg));
         abort();
     }
+    if ((uintptr_t) mem & (ALIGNMENT - 1)) { 
+        const char * err_msg = "err: memory not aligned!\n";
+        write (STDERR_FILENO, err_msg, strlen (err_msg));
+        abort(); 
+    }
 
     _Header * blk = (_Header *) ((char *) mem - ALOC_H_SIZE);
-
-    if (!blk) return NULL;
+    if (!blk) abort();
 
     if (blk->head.ah.magic_id != MAGIC_NUMBER) {
         const char * err_msg = 
