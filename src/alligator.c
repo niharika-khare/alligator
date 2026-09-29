@@ -390,9 +390,9 @@ void free ( void * restrict mem ) {
                 nn_blk->head.ah.pblk_size = blk_tt_size;
             }
 
-            if (fl_sml == n_blk) fl_sml = blk; 
-            else if (fl_mid == n_blk) fl_mid = blk; 
-            else if (fl_lrg == n_blk) fl_lrg = blk; 
+            if (fl_sml == n_blk) fl = fl_sml = blk; 
+            else if (fl_mid == n_blk) fl = fl_mid = blk; 
+            else if (fl_lrg == n_blk) fl = fl_lrg = blk; 
         }
 
     }
@@ -404,6 +404,7 @@ void free ( void * restrict mem ) {
 
         if ((p_blk->head.ah.magic_id == MAGIC_NUMBER) && p_blk->head.ah.is_free) {
         
+            blk->head.ah.is_free        = 1;
             p_blk->head.ah.size         = p_blk->head.ah.size + blk_tt_size;
             p_blk->head.ah.is_last      = blk->head.ah.is_last;
             
@@ -418,9 +419,9 @@ void free ( void * restrict mem ) {
                 blk->head.next->head.prev = blk->head.prev;
                 blk->head.prev->head.next = blk->head.next;
 
-                if (fl_sml == blk) fl_sml = p_blk; 
-                else if (fl_mid == blk) fl_mid = p_blk; 
-                else if (fl_lrg == blk) fl_lrg = p_blk; 
+                if (fl_sml == blk) fl = fl_sml = p_blk; 
+                else if (fl_mid == blk) fl = fl_mid = p_blk; 
+                else if (fl_lrg == blk) fl = fl_lrg = p_blk; 
             }
             
             blk = p_blk;
