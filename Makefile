@@ -8,7 +8,7 @@ INC_DIR := $(shell find $(INC_ROOT_DIR) -type d)
 INC_FLAG := $(addprefix -I,$(INC_DIR))
 
 
-CFLAGS := $(INC_FLAG) -O3 -ffast-math -falign-functions=64
+CFLAGS := $(INC_FLAG) -O3 -fno-builtin -fPIC -falign-functions=64
 SRC := $(shell find $(SRC_DIR) -name '*.c')
 DEPS := $(shell find $(INC_DIR) -name '*.h')
 OBJ := $(patsubst $(BUILD_DIR)/%.o,$(SRC_DIR)/%.c,$(SRC))
@@ -47,7 +47,7 @@ alligator: $(OBJ)
 
 
 # Shared Library targets
-BENCH_CFLAGS := $(INC_FLAG) -O3 -fPIC -shared -ffast-math -falign-functions=64
+BENCH_CFLAGS := $(INC_FLAG) -O3 -fno-builtin -fPIC -shared -falign-functions=64
 
 LIB_SRC := $(filter-out $(SRC_DIR)/main.c, $(SRC))
 
