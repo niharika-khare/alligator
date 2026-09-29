@@ -29,7 +29,7 @@ static inline size_t _get_page_size() {
 
 
 /** Alignment specification */
-#define ALIGNMENT                   alignof (max_align_t)
+#define ALIGNMENT                   max(alignof(max_align_t), 16)
 typedef max_align_t _align;
 
 
