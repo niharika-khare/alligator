@@ -1,6 +1,6 @@
 # 🐊 alligator
 
-A memory alligator (oops! I mean allocator) written in C, built from scratch as a deep-dive into how allocators actually work. Implements `malloc`, `free`, `realloc` and `calloc` directly on top of `mmap`/`munmap` without libc heap and `sbrk`.
+A memory alligator (oops! I mean allocator) written in C, built from scratch as a deep-dive into how allocators actually work. Implements `malloc`, `free`, `realloc` and `calloc` directly on top of `mmap`/`munmap`, without libc heap and `sbrk`.
 
 ---
 
@@ -15,7 +15,7 @@ Allocations are routed to one of three slab tiers based on request size (request
 anything bigger              → dedicated mmap per request
 ```
 
-Slabs are allocated lazily. The first request per tier triggers the `mmap`, subsequent requests carve from the existing slab. Each tier has its own circular doubly-linked free list. When a slab is fully coalesced back to its original size it's returned to the OS via `munmap`; except the first empty slab of each tier, which is kept as a *reserved* slab so the next allocation doesn't have to `mmap` again.
+Slabs are allocated lazily. The first request per tier triggers the `mmap`, subsequent requests carve from the existing slab. Each tier has its own circular doubly-linked free list. When a slab is fully coalesced back to its original size it's returned to the OS via `munmap`, except the first empty slab of each tier, which is kept as a *reserved* slab so the next allocation doesn't have to `mmap` again.
 
 Every slab is recorded in a **slab registry** which is a fixed array of `{base, size}` pairs (up to 16,384 live slabs). `free` and `realloc` check that a pointer falls inside a registered slab before reading its header.
 
@@ -43,7 +43,7 @@ Every block carries a 16-byte header. Free blocks additionally store `next`/`pre
 
 `size` is the payload size. For an allocated block that is the block's total size minus the 16-byte header; for a free block it is the total size minus the 32-byte free header.
 
-`pblk_size` is the **total** size ((header + payload) or (free_header + available space)) of the immediately preceding block, and `0` for the first block in a slab. This is the boundary tag via which `free` finds the previous header at `blk - pblk_size` in O(1), without storing a footer at the end of every block. By not storing a footer, the design is simplified (for now, might be changed when multi-threading support is added).
+`pblk_size` is the **total** size ((header + payload) or (free_header + available space)) of the immediately preceding block, and `0` for the first block in a slab. This is the boundary tag via which `free` finds the previous header at `blk - pblk_size` in O(1), without storing a footer at the end of every block. By not storing a footer, the design is simplified.
 
 `slab_id` is the slab's index in the slab registry. It is set on every block carved from a slab and used to clear the registry entry when the slab is unmapped.
 
@@ -51,7 +51,7 @@ Every block carries a 16-byte header. Free blocks additionally store `next`/`pre
 
 `is_reserved` marks the one empty slab per tier that is kept instead of unmapped.
 
-Every returned pointer is aligned to `ALIGNMENT` (`alignof(max_align_t)`): request sizes are rounded up to it, slabs start on a page boundary and both headers are multiples of 16. That is 16 bytes on Linux (aarch64 and x86-64) and 8 bytes on Apple Silicon macOS.
+Every returned pointer is aligned to `ALIGNMENT` (`max(alignof(max_align_t), 16)`): request sizes are rounded up to it, slabs start on a page boundary and both headers are multiples of 16. That is 16 bytes on Linux (aarch64 and x86-64) and 8 bytes on Apple Silicon macOS.
 
 ### Allocation
 
@@ -126,7 +126,7 @@ Everything is built with `-fno-builtin`, so the compiler doesn't treat `malloc`/
 
 No external dependencies — only POSIX (`mmap`, `munmap`, `sysconf`, `write`, `abort`, `memcpy`, `memset`, `strlen`).
 
-> Developed on Apple Silicon (aarch64/macOS). Benchmarked with mimalloc-bench on Ubuntu Linux — an aarch64 VM (UTM on Apple M5) and x86-64 (via Opus 5.5). If `MAP_ANONYMOUS` isn't available on your platform, replace with `MAP_ANON`.
+> Developed on Apple Silicon (aarch64/macOS). Benchmarked with mimalloc-bench on Ubuntu Linux — an aarch64 VM (UTM on Apple M5) and x86-64 Linux (cloud VM). If `MAP_ANONYMOUS` isn't available on your platform, replace with `MAP_ANON`.
 
 ---
 
@@ -149,7 +149,7 @@ The small slab was originally one page. Growing it to 16 pages means about 16× 
 When splitting a free block, the allocated region is carved from the back. The free block header at the front doesn't move — it stays at the same address with the same free list position. The only updates needed are the front block's `size` and the `pblk_size` of the block immediately after the newly allocated region. Splitting from the front would require relinking the free list every time.
 
 **Boundary tags without footers.**
-Classic boundary-tag allocators store a copy of the header at the end of each block so the previous block can be found in O(1) during coalescing. Storing `pblk_size` in the current block's header achieves the same O(1) backward lookup without writing to the tail of every block — halving the metadata written per allocation and simplify the colescing logic.
+Classic boundary-tag allocators store a copy of the header at the end of each block so the previous block can be found in O(1) during coalescing. Storing `pblk_size` in the current block's header achieves the same O(1) backward lookup without writing to the tail of every block — halving the metadata written per allocation and simplifies the colescing logic.
 
 **Circular doubly-linked free list.**
 Coalescing needs to remove an arbitrary node from the middle of the free list in O(1) — specifically the neighbour being absorbed. A doubly-linked list makes this trivial. Circular layout simplifies the traversal loop in `_find_f_blk` — no null checks mid-iteration.
@@ -170,7 +170,7 @@ Before reading any header, `free` and `realloc` check that the pointer lies insi
 If the pointer is misaligned, outside every slab, `magic_id` doesn't match, or `is_free` is already set, the allocator prints the reason and calls `abort()`. There's no safe way to recover from a corrupted header — attempting to continue would likely corrupt more state. Failing loudly makes bugs easier to find.
 
 **Bitfields for the header.**
-The header packs cleanly into two 64-bit words: `is_free(1) + is_last(1) + size(48) + slab_id(14)` in word 1, `pblk_size(48) + magic_id(15) + is_reserved(1)` in word 2. `magic_id` is 15 bits so `is_reserved` fits without growing the header past 16 bytes, which keeps both headers a multiple of the alignment. The tradeoff is thread safety — bitfield writes are not atomic, so current version (v1.0.0) of the allocator is intentionally single-threaded (for now).
+The header packs cleanly into two 64-bit words: `is_free(1) + is_last(1) + size(48) + slab_id(14)` in word 1, `pblk_size(48) + magic_id(15) + is_reserved(1)` in word 2. `magic_id` is 15 bits so `is_reserved` fits without growing the header past 16 bytes, which keeps both headers a multiple of the alignment. The tradeoff is thread safety — bitfield writes are not atomic, so current version (v1.1.0) of the allocator is intentionally single-threaded (for now).
 
 ---
 
