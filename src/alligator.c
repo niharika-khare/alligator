@@ -247,6 +247,8 @@ static _Header * _find_f_blk (_Header * fl, size_t size) {
  * 7. malloc(0) would return a pointer to address whose ptr->head.ah.size = 0
  */
 void * malloc (size_t size) {
+    
+    if (size > MAX_ALLOWED_SIZE) return NULL;
 
     _Header * fl;
     _Header * f_blk = NULL;
@@ -480,6 +482,8 @@ void * realloc(void * mem, size_t size) {
 }
 
 void * calloc (size_t num_ele, size_t ele_size) {
+
+    if (ele_size && num_ele > (MAX_ALLOWED_SIZE/ele_size)) return NULL;
 
     size_t size = num_ele * ele_size;
 

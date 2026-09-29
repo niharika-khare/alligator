@@ -38,6 +38,7 @@ typedef max_align_t _align;
 #define SLAB_SIZE_MID               (size_t) (1024 * PAGE_SIZE - FREE_H_SIZE)
 #define SLAB_SIZE_LRG               (size_t) (32 * 1024 * PAGE_SIZE - FREE_H_SIZE)
 
+#define MAX_ALLOWED_SIZE            (((size_t) 1ULL << 48) - ALOC_H_SIZE - ALIGNMENT)
 
 /**
  * The use of bitfields take away the scope for multi-threding 
