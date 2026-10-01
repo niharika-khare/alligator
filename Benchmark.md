@@ -113,7 +113,7 @@ Each cell shows the median time and median peak memory (RSS) over all runs. The 
 | **Geo. mean time vs glibc** | **1.23** | 1.00 | 0.92 | 1.05 |
 | **Geo. mean memory vs glibc** | **1.02** | 1.00 | 1.00 | 1.02 |
 
-10 runs per test. Full data: [results-aarch64-vm.csv](bench-results/results-aarch64-vm.csv).
+10 runs per test. Full data: [results-aarch64-vm.csv](https://github.com/niharika-khare/alligator/blob/mainline/mimalloc-bench-results/aarch64_ubuntu_VM_macOS_M5.csv).
 
 ### x86-64 (Intel Xeon)
 
@@ -131,7 +131,7 @@ Each cell shows the median time and median peak memory (RSS) over all runs. The 
 | **Geo. mean time vs glibc** | **1.18** | 1.00 | 0.85 | 0.97 |
 | **Geo. mean memory vs glibc** | **1.02** | 1.00 | 1.06 | 1.18 |
 
-10 runs per test, except gs and alloc-test1, which have 5 runs. These timings were taken with an earlier build of alligator, before the alignment and size-limit changes. Full data: [results-x86-64.csv](bench-results/results-x86-64.csv).
+10 runs per test, except gs and alloc-test1, which have 5 runs. These timings were taken with an earlier build of alligator, before the alignment and size-limit changes. Full data: [results-x86-64.csv](https://github.com/niharika-khare/alligator/blob/mainline/mimalloc-bench-results/x86-64_Intel_Linux_Cloud_VM.csv).
 
 ### Security
 
@@ -139,8 +139,8 @@ Number of the 116 security checks each allocator catches. Higher is better.
 
 | Machine | al | sys (glibc) | mi | mi-sec | Output |
 |---|---|---|---|---|---|
-| aarch64 | **69** | 69 | 32 | 53 | [security-aarch64-vm.txt](bench-results/security-aarch64-vm.txt) |
-| x86-64 | **64** | 68 | 32 | 50 | [security-x86-64.txt](bench-results/security-x86-64.txt) |
+| aarch64 | **69** | 69 | 32 | 53 | [security-aarch64-vm.txt](https://github.com/niharika-khare/alligator/blob/mainline/mimalloc-bench-results/aarch64_security_results.txt) |
+| x86-64 | **64** | 68 | 32 | 50 | [security-x86-64.txt](https://github.com/niharika-khare/alligator/blob/mainline/mimalloc-bench-results/x86-64_security_results.txt) |
 
 - al uses the latest code, built with `make lib` (`-O3`).
 - **On aarch64, al catches as many checks as glibc (69 each). On x86-64 it catches 4 fewer than glibc.** On both machines it catches about twice as many as mimalloc, and more than mimalloc's secure build.
